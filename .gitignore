@@ -1,0 +1,52 @@
+# Go build artifacts
+*.exe
+*.test
+*.out
+
+# Binary outputs
+go-nvr.exe
+go-nvr.yaml
+
+# Database files
+*.db
+
+
+# Frontend
+web/node_modules/
+web/dist/
+
+# Legacy / unused directories
+web_embed/
+
+
+# Project management / tooling
+.sisyphus/
+.rtk/
+AGENTS.md
+
+# Test / tooling artifacts
+e2e-tests/
+.playwright-mcp/
+test-results/
+tmp/
+package-lock.json
+
+# Test screenshots
+/test*.png
+/e2e-*.png
+
+# QA screenshots
+/qa-*.png
+
+# Private documentation (not committed to remote)
+docs/private/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*.
+.DS_Store
+.build-tmp/
+data/

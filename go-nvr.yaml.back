@@ -1,0 +1,58 @@
+server:
+    listen: :9090
+storage:
+    root_dir: /var/lib/go-nvr
+    segment_duration: 30s
+cameras:
+    - id: cam-c0fd1c7f-e43b-44df-a98d-d5a73e8b7050
+      name: 测试
+      protocol: rtsp
+      encoding: h264
+      url: rtsp://10.88.20.163:8554/stream
+      username: ""
+      password: ""
+      onvif_endpoint: ""
+      profile_token: ""
+      stream_encoding: ""
+      enabled: true
+      sub_stream_url: ""
+      snapshot_url: ""
+      sample_interval: 0
+      hls_max_fps: 0
+      merge: null
+cleanup:
+    retention_days: 30
+    check_interval: 1h
+    disk_threshold_percent: 95
+merge:
+    enabled: false
+    check_interval: 1h
+    window_size: 1h
+    batch_limit: 200
+    min_segment_age: 10m
+    min_segments_to_merge: 3
+auth:
+    username: admin
+    password_hash: ""
+    password: ""
+ftp:
+    enabled: true
+    port: 2121
+    passive_port_range: 2122-2140
+mqtt:
+    enabled: false
+    broker: ""
+    topic: ""
+    client_id: ""
+webdav:
+    enabled: true
+    path_prefix: /dav
+    read_write: false
+hls:
+    write_buffer_size: 40
+    segment_max_size_mb: 10
+observability:
+    log_level: info
+    log_format: text
+    enable_pprof: false
+version: "1.0"
