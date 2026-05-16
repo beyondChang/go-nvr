@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.beyond.nvr.data.repository.PreferencesRepository
+import com.beyond.nvr.ui.util.StatusUtils
 import com.shuyu.gsyvideoplayer.video.StandardGSYVideoPlayer
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -67,7 +68,10 @@ fun LiveViewScreen(
     // Release player when leaving screen
     DisposableEffect(Unit) {
         onDispose {
-            playerRef.value?.onVideoPause()
+            playerRef.value?.let {
+                it.onVideoPause()
+                it.release()
+            }
         }
     }
 
@@ -367,24 +371,10 @@ fun LiveViewScreen(
 
 @Composable
 private fun StatusBadge(status: String?) {
-    val (bgColor, text) = when {
-        status == null -> Pair(Color.Gray.copy(alpha = 0.2f), "未知")
-        status.contains("connect", ignoreCase = true) || status.contains("online", ignoreCase = true) ->
-            Pair(Color(0xFF4CAF50).copy(alpha = 0.15f), "在线")
-        status.contains("error", ignoreCase = true) || status.contains("offline", ignoreCase = true) || status.contains("fail", ignoreCase = true) ->
-            Pair(Color(0xFFE53935).copy(alpha = 0.15f), "离线")
-        else -> Pair(Color(0xFFFF9800).copy(alpha = 0.15f), status)
-    }
-    val dotColor = when {
-        status == null -> Color.Gray
-        status.contains("connect", ignoreCase = true) || status.contains("online", ignoreCase = true) -> Color(0xFF4CAF50)
-        status.contains("error", ignoreCase = true) || status.contains("offline", ignoreCase = true) || status.contains("fail", ignoreCase = true) -> Color(0xFFE53935)
-        else -> Color(0xFFFF9800)
-    }
-
+    val colors = StatusUtils.parseStatus(status)
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = bgColor,
+        color = colors.bg,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
@@ -393,14 +383,14 @@ private fun StatusBadge(status: String?) {
             Surface(
                 modifier = Modifier.size(8.dp),
                 shape = RoundedCornerShape(4.dp),
-                color = dotColor,
+                color = colors.dot,
             ) {}
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = text,
+                text = colors.text,
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Medium,
-                color = dotColor,
+                color = colors.dot,
             )
         }
     }

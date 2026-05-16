@@ -23,6 +23,7 @@ import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import java.text.SimpleDateFormat
 import java.util.*
+import com.beyond.nvr.ui.util.FormatUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -258,9 +259,9 @@ fun RecordingDetailScreen(
                             HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
                             DetailRow(Icons.Default.Code, "格式", recording.format.uppercase())
                             HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
-                            DetailRow(Icons.Default.Timer, "时长", formatDuration(recording.duration))
+DetailRow(Icons.Default.Timer, "时长", FormatUtils.formatDuration(recording.duration))
                             HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
-                            DetailRow(Icons.Default.Storage, "文件大小", formatFileSize(recording.fileSize))
+DetailRow(Icons.Default.Storage, "文件大小", FormatUtils.formatFileSize(recording.fileSize))
                             HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
                             DetailRow(
                                 if (recording.merged) Icons.Default.CheckCircle else Icons.Default.Cancel,
@@ -418,25 +419,3 @@ private fun DetailRow(
     }
 }
 
-private fun formatDuration(seconds: Double): String {
-    val totalSecs = seconds.toLong()
-    val h = totalSecs / 3600
-    val m = (totalSecs % 3600) / 60
-    val s = totalSecs % 60
-    return buildString {
-        if (h > 0) append("${h}时 ")
-        if (m > 0 || h > 0) append("${m}分 ")
-        append("${s}秒")
-    }
-}
-
-private fun formatFileSize(bytes: Long): String {
-    val units = arrayOf("B", "KB", "MB", "GB")
-    var size = bytes.toDouble()
-    var unitIndex = 0
-    while (size >= 1024 && unitIndex < units.size - 1) {
-        size /= 1024
-        unitIndex++
-    }
-    return "%.1f %s".format(size, units[unitIndex])
-}

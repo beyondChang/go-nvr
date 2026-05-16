@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.compose.viewmodel.koinViewModel
+import com.beyond.nvr.ui.util.FormatUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -112,9 +113,9 @@ fun StatsScreen(
                             }
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                StatRow("已用", formatBytes(stats.usedBytes))
-                                StatRow("可用", formatBytes(stats.totalBytes - stats.usedBytes))
-                                StatRow("总计", formatBytes(stats.totalBytes))
+                                StatRow("已用", FormatUtils.formatFileSize(stats.usedBytes))
+                                StatRow("可用", FormatUtils.formatFileSize(stats.totalBytes - stats.usedBytes))
+                                StatRow("总计", FormatUtils.formatFileSize(stats.totalBytes))
                             }
                         }
 
@@ -367,13 +368,4 @@ private fun progressColor(percentage: Float): Color = when {
     else -> Color(0xFF4CAF50)
 }
 
-private fun formatBytes(bytes: Long): String {
-    val units = arrayOf("B", "KB", "MB", "GB", "TB")
-    var size = bytes.toDouble()
-    var unitIndex = 0
-    while (size >= 1024 && unitIndex < units.size - 1) {
-        size /= 1024
-        unitIndex++
-    }
-    return "%.1f %s".format(size, units[unitIndex])
-}
+

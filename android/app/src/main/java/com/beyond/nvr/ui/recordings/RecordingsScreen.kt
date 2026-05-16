@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.beyond.nvr.data.model.Recording
 import org.koin.compose.viewmodel.koinViewModel
+import com.beyond.nvr.ui.util.FormatUtils
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -297,7 +298,7 @@ private fun RecordingListItem(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        text = " · ${formatDuration(recording.duration)}",
+                        text = " · ${FormatUtils.formatDurationShort(recording.duration)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -306,7 +307,7 @@ private fun RecordingListItem(
 
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = formatFileSize(recording.fileSize),
+                    text = FormatUtils.formatFileSize(recording.fileSize),
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium,
                 )
@@ -329,22 +330,4 @@ private fun RecordingListItem(
     }
 }
 
-private fun formatDuration(seconds: Double): String {
-    val hrs = (seconds / 3600).toInt()
-    val mins = ((seconds % 3600) / 60).toInt()
-    val secs = (seconds % 60).toInt()
-    return if (hrs > 0) "${hrs}h ${mins}m ${secs}s"
-    else if (mins > 0) "${mins}m ${secs}s"
-    else "${secs}s"
-}
 
-private fun formatFileSize(bytes: Long): String {
-    val units = arrayOf("B", "KB", "MB", "GB")
-    var size = bytes.toDouble()
-    var unitIndex = 0
-    while (size >= 1024 && unitIndex < units.size - 1) {
-        size /= 1024
-        unitIndex++
-    }
-    return "%.1f %s".format(size, units[unitIndex])
-}

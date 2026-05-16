@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.beyond.nvr.data.model.Camera
+import com.beyond.nvr.ui.util.StatusUtils
 import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -379,7 +380,7 @@ private fun DashboardCameraCard(
                     Surface(
                         modifier = Modifier.size(6.dp),
                         shape = RoundedCornerShape(3.dp),
-                        color = statusColor(camera.status),
+                        color = StatusUtils.statusDotColor(camera.status),
                     ) {}
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
@@ -405,9 +406,4 @@ private fun DashboardCameraCard(
     }
 }
 
-private fun statusColor(status: String?): Color = when {
-    status == null -> Color.Gray
-    status.contains("connect", ignoreCase = true) || status.contains("online", ignoreCase = true) -> Color(0xFF4CAF50)
-    status.contains("error", ignoreCase = true) || status.contains("offline", ignoreCase = true) || status.contains("fail", ignoreCase = true) -> Color(0xFFE53935)
-    else -> Color(0xFFFF9800)
-}
+
