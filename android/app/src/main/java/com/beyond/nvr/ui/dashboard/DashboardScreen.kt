@@ -14,7 +14,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -160,51 +159,20 @@ fun DashboardScreen(
                     WelcomeSection(username = uiState.username)
                 }
 
-                // ── Quick actions: 录像 & 摄像头 ──
+                // ── 摄像头大卡片 ──
                 item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        QuickActionCard(
-                            onClick = onNavigateToRecordings,
-                            icon = Icons.Default.PlayCircle,
-                            label = "录像",
-                            modifier = Modifier.weight(1f),
-                        )
-                        QuickActionCard(
-                            onClick = onNavigateToCameras,
-                            icon = Icons.Default.Videocam,
-                            label = "摄像头",
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
+                    CameraBigCard(
+                        cameras = uiState.cameras,
+                        onNavigateToCameras = onNavigateToCameras,
+                        onNavigateToLiveView = onNavigateToLiveView,
+                    )
                 }
 
-                // ── Camera list section ──
-                if (uiState.cameras.isNotEmpty()) {
-                    item {
-                        SectionHeader(
-                            icon = Icons.Default.Videocam,
-                            title = "摄像头 (${uiState.cameras.size})",
-                            action = if (uiState.cameras.size > 3) "查看全部" else null,
-                            onAction = if (uiState.cameras.size > 3) onNavigateToCameras else null,
-                        )
-                    }
-                    val enabledCameras = uiState.cameras.filter { it.enabled }
-                    items(enabledCameras.take(3), key = { it.id }) { camera ->
-                        CameraCard(
-                            camera = camera,
-                            onClick = { onNavigateToLiveView(camera.id) },
-                        )
-                    }
-                }
-
-                // ── Empty state ──
-                if (uiState.cameras.isEmpty()) {
-                    item {
-                        EmptyCamerasState(onAdd = onNavigateToCameras)
-                    }
+                // ── 录像大卡片 ──
+                item {
+                    RecordingsBigCard(
+                        onNavigateToRecordings = onNavigateToRecordings,
+                    )
                 }
             }
         }
@@ -255,79 +223,183 @@ private fun WelcomeSection(username: String) {
 }
 
 @Composable
-private fun QuickActionCard(
-    onClick: () -> Unit,
-    icon: ImageVector,
-    label: String,
-    modifier: Modifier = Modifier,
+private fun CameraBigCard(
+    cameras: List<Camera>,
+    onNavigateToCameras: () -> Unit,
+    onNavigateToLiveView: (String) -> Unit,
 ) {
     Card(
-        onClick = onClick,
-        modifier = modifier.height(96.dp),
-        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                modifier = Modifier.size(32.dp),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
+        Column(modifier = Modifier.padding(16.dp)) {
+            // ── Header ──
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Default.Videocam,
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "摄像头",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                if (cameras.isNotEmpty()) {
+                    Text(
+                        text = " (${cameras.size})",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                TextButton(
+                    onClick = onNavigateToCameras,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                ) {
+                    Text("管理", style = MaterialTheme.typography.labelLarge)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // ── Content ──
+            if (cameras.isEmpty()) {
+                EmptyCamerasState(onAdd = onNavigateToCameras)
+            } else {
+                val sortedCameras = cameras.sortedByDescending {
+                    it.status?.contains("online", ignoreCase = true) ?: false
+                }
+                sortedCameras.take(3).forEach { camera ->
+                    CameraCard(
+                        camera = camera,
+                        onClick = { onNavigateToLiveView(camera.id) },
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                if (cameras.size > 3) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                    ) {
+                        TextButton(onClick = onNavigateToCameras) {
+                            Text("查看全部 ${cameras.size} 个摄像头")
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun SectionHeader(
-    icon: ImageVector,
-    title: String,
-    action: String? = null,
-    onAction: (() -> Unit)? = null,
+private fun RecordingsBigCard(
+    onNavigateToRecordings: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Icon(
-            icon,
-            contentDescription = null,
-            modifier = Modifier.size(18.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f),
-        )
-        if (action != null && onAction != null) {
-            TextButton(onClick = onAction, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
-                Text(
-                    text = action,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+        ) {
+            // ── Header ──
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Default.PlayCircle,
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp),
+                    tint = MaterialTheme.colorScheme.primary,
                 )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "录像",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                TextButton(
+                    onClick = onNavigateToRecordings,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                ) {
+                    Text("查看全部", style = MaterialTheme.typography.labelLarge)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // ── Content ──
+            Card(
+                onClick = onNavigateToRecordings,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Surface(
+                        modifier = Modifier.size(52.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(28.dp),
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "查看录像回放",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "浏览已保存的监控录像",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Icon(
+                        Icons.Default.KeyboardArrowRight,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    )
+                }
             }
         }
     }
