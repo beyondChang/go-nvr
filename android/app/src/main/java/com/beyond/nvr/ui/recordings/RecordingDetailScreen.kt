@@ -99,19 +99,17 @@ fun RecordingDetailScreen(
                 },
                 actions = {
                     if (uiState.cameraRecordings.isNotEmpty()) {
-                        val prevIndex = uiState.currentIndex - 1
-                        val nextIndex = uiState.currentIndex + 1
-                        IconButton(
-                            onClick = { viewModel.loadRecording(uiState.cameraRecordings[prevIndex].id) },
-                            enabled = prevIndex >= 0,
+                        TextButton(
+                            onClick = { viewModel.previousRecording() },
+                            enabled = uiState.currentIndex > 0,
                         ) {
-                            Icon(Icons.Default.SkipPrevious, contentDescription = "上一个")
+                            Text("◀ 上一段", style = MaterialTheme.typography.labelMedium)
                         }
-                        IconButton(
-                            onClick = { viewModel.loadRecording(uiState.cameraRecordings[nextIndex].id) },
-                            enabled = nextIndex < uiState.cameraRecordings.size,
+                        TextButton(
+                            onClick = { viewModel.nextRecording() },
+                            enabled = uiState.currentIndex < uiState.cameraRecordings.size - 1,
                         ) {
-                            Icon(Icons.Default.SkipNext, contentDescription = "下一个")
+                            Text("下一段 ▶", style = MaterialTheme.typography.labelMedium)
                         }
                     }
                     IconButton(onClick = { showDeleteDialog = true }) {
@@ -247,6 +245,69 @@ fun RecordingDetailScreen(
                         }
                     }
 
+                    // ── Episode Selector ──
+                    if (uiState.cameraRecordings.isNotEmpty()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.List,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "片段列表",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    Text(
+                                        text = "${uiState.currentIndex + 1} / ${uiState.cameraRecordings.size}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(10.dp))
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    itemsIndexed(uiState.cameraRecordings) { index, rec ->
+                                        val isCurrent = index == uiState.currentIndex
+                                        SuggestionChip(
+                                            onClick = { viewModel.selectRecording(rec.id) },
+                                            label = {
+                                                Text(
+                                                    text = FormatUtils.formatTimestamp(rec.startedAt, "HH:mm:ss"),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                )
+                                            },
+                                            icon = if (isCurrent) {
+                                                { Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                                            } else null,
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = SuggestionChipDefaults.suggestionChipColors(
+                                                containerColor = if (isCurrent)
+                                                    MaterialTheme.colorScheme.primaryContainer
+                                                else
+                                                    MaterialTheme.colorScheme.surfaceVariant,
+                                                labelColor = if (isCurrent)
+                                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                                else
+                                                    MaterialTheme.colorScheme.onSurfaceVariant,
+                                            ),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // Info card
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -314,63 +375,6 @@ DetailRow(Icons.Default.Storage, "文件大小", FormatUtils.formatFileSize(reco
                                     text = "总帧数：${uiState.frames.size}",
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
-                            }
-                        }
-                    }
-
-                    // ── Episode Selector ──
-                    if (uiState.cameraRecordings.isNotEmpty()) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        Icons.Default.List,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
-                                        tint = MaterialTheme.colorScheme.primary,
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "片段列表",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold,
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(10.dp))
-                                LazyRow(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    itemsIndexed(uiState.cameraRecordings) { index, rec ->
-                                        val isCurrent = index == uiState.currentIndex
-                                        SuggestionChip(
-                                            onClick = { viewModel.loadRecording(rec.id) },
-                                            label = {
-                                                Text(
-                                                    text = FormatUtils.formatTimestamp(rec.startedAt, "HH:mm:ss"),
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                )
-                                            },
-                                            icon = if (isCurrent) {
-                                                { Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                                            } else null,
-                                            shape = RoundedCornerShape(8.dp),
-                                            colors = SuggestionChipDefaults.suggestionChipColors(
-                                                containerColor = if (isCurrent)
-                                                    MaterialTheme.colorScheme.primaryContainer
-                                                else
-                                                    MaterialTheme.colorScheme.surfaceVariant,
-                                                labelColor = if (isCurrent)
-                                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                                else
-                                                    MaterialTheme.colorScheme.onSurfaceVariant,
-                                            ),
-                                        )
-                                    }
-                                }
                             }
                         }
                     }
