@@ -22,6 +22,8 @@ import com.shuyu.gsyvideoplayer.video.StandardGSYVideoPlayer
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import com.beyond.nvr.ui.util.FormatUtils
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,8 +42,9 @@ fun RecordingDetailScreen(
     }
 
     // Build download URL for video playback
-    val downloadUrl = remember(serverUrl, recordingId) {
-        "${serverUrl.trimEnd('/')}/api/recordings/$recordingId/download"
+    val downloadUrl = remember(serverUrl, uiState.recording?.id) {
+        val id = uiState.recording?.id ?: recordingId
+        "${serverUrl.trimEnd('/')}/api/recordings/$id/download"
     }
 
     val isPlayable = uiState.recording?.format in listOf("h264", "h265")
@@ -49,8 +52,8 @@ fun RecordingDetailScreen(
     // GSYVideoPlayer instance — held in state so DisposableEffect can release it
     val playerRef = remember { mutableStateOf<StandardGSYVideoPlayer?>(null) }
 
-    // Update player source when URL is ready
-    LaunchedEffect(downloadUrl, isPlayable, uiState.recording) {
+    // Update player source when recording is ready
+    LaunchedEffect(isPlayable, uiState.recording) {
         val player = playerRef.value ?: return@LaunchedEffect
         if (isPlayable && serverUrl.isNotBlank() && uiState.recording != null) {
             val authHeader = CredentialCache.get()
@@ -95,6 +98,22 @@ fun RecordingDetailScreen(
                     }
                 },
                 actions = {
+                    if (uiState.cameraRecordings.isNotEmpty()) {
+                        val prevIndex = uiState.currentIndex - 1
+                        val nextIndex = uiState.currentIndex + 1
+                        IconButton(
+                            onClick = { viewModel.loadRecording(uiState.cameraRecordings[prevIndex].id) },
+                            enabled = prevIndex >= 0,
+                        ) {
+                            Icon(Icons.Default.SkipPrevious, contentDescription = "上一个")
+                        }
+                        IconButton(
+                            onClick = { viewModel.loadRecording(uiState.cameraRecordings[nextIndex].id) },
+                            enabled = nextIndex < uiState.cameraRecordings.size,
+                        ) {
+                            Icon(Icons.Default.SkipNext, contentDescription = "下一个")
+                        }
+                    }
                     IconButton(onClick = { showDeleteDialog = true }) {
                         Icon(Icons.Default.Delete, contentDescription = "删除")
                     }
@@ -299,6 +318,63 @@ DetailRow(Icons.Default.Storage, "文件大小", FormatUtils.formatFileSize(reco
                         }
                     }
 
+                    // ── Episode Selector ──
+                    if (uiState.cameraRecordings.isNotEmpty()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.List,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "片段列表",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(10.dp))
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    itemsIndexed(uiState.cameraRecordings) { index, rec ->
+                                        val isCurrent = index == uiState.currentIndex
+                                        SuggestionChip(
+                                            onClick = { viewModel.loadRecording(rec.id) },
+                                            label = {
+                                                Text(
+                                                    text = FormatUtils.formatTimestamp(rec.startedAt, "HH:mm:ss"),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                )
+                                            },
+                                            icon = if (isCurrent) {
+                                                { Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                                            } else null,
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = SuggestionChipDefaults.suggestionChipColors(
+                                                containerColor = if (isCurrent)
+                                                    MaterialTheme.colorScheme.primaryContainer
+                                                else
+                                                    MaterialTheme.colorScheme.surfaceVariant,
+                                                labelColor = if (isCurrent)
+                                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                                else
+                                                    MaterialTheme.colorScheme.onSurfaceVariant,
+                                            ),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // Actions
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -351,7 +427,7 @@ DetailRow(Icons.Default.Storage, "文件大小", FormatUtils.formatFileSize(reco
                 Button(
                     onClick = {
                         showDeleteDialog = false
-                        viewModel.deleteRecording(recordingId)
+                        viewModel.deleteRecording()
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error,

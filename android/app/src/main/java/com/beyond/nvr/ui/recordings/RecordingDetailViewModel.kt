@@ -14,6 +14,8 @@ import kotlinx.coroutines.launch
 data class RecordingDetailUiState(
     val recording: Recording? = null,
     val frames: List<FrameInfo> = emptyList(),
+    val cameraRecordings: List<Recording> = emptyList(),
+    val currentIndex: Int = -1,
     val isLoading: Boolean = true,
     val error: String? = null,
     val deleted: Boolean = false,
@@ -39,6 +41,8 @@ class RecordingDetailViewModel(
                     if (recording.format == "mjpeg") {
                         loadFrames(recordingId)
                     }
+                    // Load all recordings for the same camera
+                    loadCameraRecordings(recording.cameraId, recordingId)
                 },
                 onFailure = { e ->
                     _uiState.value = _uiState.value.copy(
@@ -47,6 +51,44 @@ class RecordingDetailViewModel(
                     )
                 },
             )
+        }
+    }
+
+    private fun loadCameraRecordings(cameraId: String, currentRecordingId: String) {
+        viewModelScope.launch {
+            recordingRepository.listRecordings(cameraId = cameraId).fold(
+                onSuccess = { response ->
+                    val recordings = response.recordings.sortedBy { it.startedAt }
+                    val currentIndex = recordings.indexOfFirst { it.id == currentRecordingId }
+                    _uiState.value = _uiState.value.copy(
+                        cameraRecordings = recordings,
+                        currentIndex = currentIndex,
+                    )
+                },
+                onFailure = { /* ignore */ },
+            )
+        }
+    }
+
+    fun selectRecording(recordingId: String) {
+        loadRecording(recordingId)
+    }
+
+    fun previousRecording() {
+        val state = _uiState.value
+        val index = state.currentIndex
+        if (index > 0) {
+            val prevRecording = state.cameraRecordings[index - 1]
+            selectRecording(prevRecording.id)
+        }
+    }
+
+    fun nextRecording() {
+        val state = _uiState.value
+        val index = state.currentIndex
+        if (index < state.cameraRecordings.size - 1) {
+            val nextRecording = state.cameraRecordings[index + 1]
+            selectRecording(nextRecording.id)
         }
     }
 
@@ -61,7 +103,8 @@ class RecordingDetailViewModel(
         }
     }
 
-    fun deleteRecording(recordingId: String) {
+    fun deleteRecording() {
+        val recordingId = _uiState.value.recording?.id ?: return
         viewModelScope.launch {
             recordingRepository.deleteRecording(recordingId).fold(
                 onSuccess = {
