@@ -46,9 +46,6 @@ fun NavGraph() {
             DashboardScreen(
                 onNavigateToCameras = { navController.navigate(Routes.Cameras.route) },
                 onNavigateToRecordings = { navController.navigate(Routes.Recordings.route) },
-                onNavigateToLiveView = { cameraId ->
-                    navController.navigate(Routes.LiveView.createRoute(cameraId))
-                },
                 onNavigateToStats = { navController.navigate(Routes.Stats.route) },
                 onNavigateToSettings = { navController.navigate(Routes.Settings.route) },
                 onLogout = {
