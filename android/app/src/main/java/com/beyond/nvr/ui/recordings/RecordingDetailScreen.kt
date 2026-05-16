@@ -3,9 +3,7 @@ package com.beyond.nvr.ui.recordings
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -18,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -162,9 +161,8 @@ fun RecordingDetailScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
-                        .verticalScroll(rememberScrollState())
                         .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     // ── Video Player ──
                     if (isPlayable && serverUrl.isNotBlank()) {
@@ -234,14 +232,20 @@ fun RecordingDetailScreen(
                     // ── Episode Grid ──
                     if (uiState.cameraRecordings.isNotEmpty()) {
                         Card(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
                             shape = RoundedCornerShape(12.dp),
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surface,
                             ),
                         ) {
-                            Column(modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 8.dp)) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 4.dp),
+                            ) {
                                 // Title bar with accent line
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(
@@ -249,9 +253,7 @@ fun RecordingDetailScreen(
                                             .width(3.dp)
                                             .height(18.dp)
                                             .clip(RoundedCornerShape(2.dp))
-                                            .then(MaterialTheme.colorScheme.primary.let { color ->
-                                                Modifier.background(color)
-                                            })
+                                            .background(MaterialTheme.colorScheme.primary),
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
@@ -279,13 +281,12 @@ fun RecordingDetailScreen(
                                     verticalArrangement = Arrangement.spacedBy(8.dp),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .heightIn(max = 340.dp),
+                                        .weight(1f),
                                 ) {
                                     itemsIndexed(uiState.cameraRecordings) { index, rec ->
                                         val isCurrent = index == uiState.currentIndex
                                         val startTime = FormatUtils.formatTimestamp(rec.startedAt, "HH:mm:ss")
                                         val endTime = FormatUtils.formatTimestamp(rec.endedAt, "HH:mm:ss")
-                                        val startDate = FormatUtils.formatTimestamp(rec.startedAt, "MM-dd")
                                         Card(
                                             onClick = { viewModel.selectRecording(rec.id) },
                                             modifier = Modifier.fillMaxWidth(),
@@ -297,45 +298,55 @@ fun RecordingDetailScreen(
                                                     MaterialTheme.colorScheme.surfaceVariant,
                                             ),
                                             border = if (isCurrent) {
-                                                BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
+                                                BorderStroke(1.2.dp, MaterialTheme.colorScheme.primary)
                                             } else null,
                                             elevation = CardDefaults.cardElevation(
                                                 defaultElevation = if (isCurrent) 4.dp else 1.dp,
                                             ),
                                         ) {
                                             Column(
-                                                modifier = Modifier.padding(12.dp),
-                                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                                                modifier = Modifier.padding(10.dp),
+                                                verticalArrangement = Arrangement.spacedBy(4.dp),
                                             ) {
+                                                // Start time row
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    if (isCurrent) {
-                                                        Icon(
-                                                            Icons.Default.PlayArrow,
-                                                            contentDescription = null,
-                                                            modifier = Modifier.size(14.dp),
-                                                            tint = MaterialTheme.colorScheme.primary,
-                                                        )
-                                                        Spacer(modifier = Modifier.width(4.dp))
-                                                    }
+                                                    Icon(
+                                                        Icons.Default.PlayArrow,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(12.dp),
+                                                        tint = if (isCurrent)
+                                                            MaterialTheme.colorScheme.primary
+                                                        else
+                                                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                                    )
+                                                    Spacer(modifier = Modifier.width(4.dp))
                                                     Text(
-                                                        text = "开始 $startTime",
+                                                        text = startTime,
                                                         style = MaterialTheme.typography.bodySmall,
-                                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                                                        fontWeight = FontWeight.SemiBold,
                                                         color = if (isCurrent)
                                                             MaterialTheme.colorScheme.onPrimaryContainer
                                                         else
                                                             MaterialTheme.colorScheme.onSurfaceVariant,
-                                                        maxLines = 1,
                                                     )
                                                 }
-                                                Text(
-                                                    text = "结束 $endTime",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    fontWeight = FontWeight.Normal,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                                    maxLines = 1,
-                                                )
-                                                Spacer(modifier = Modifier.height(2.dp))
+                                                // End time row
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(
+                                                        Icons.Default.Stop,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(12.dp),
+                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                                    )
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text(
+                                                        text = endTime,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        fontWeight = FontWeight.Normal,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                    )
+                                                }
+                                                // Duration badge
                                                 Surface(
                                                     shape = RoundedCornerShape(4.dp),
                                                     color = if (isCurrent)
@@ -346,7 +357,10 @@ fun RecordingDetailScreen(
                                                     Text(
                                                         text = FormatUtils.formatDurationShort(rec.duration),
                                                         style = MaterialTheme.typography.labelSmall,
-                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                                        modifier = Modifier
+                                                            .padding(horizontal = 5.dp, vertical = 1.dp)
+                                                            .fillMaxWidth(),
+                                                        textAlign = TextAlign.Center,
                                                         color = if (isCurrent)
                                                             MaterialTheme.colorScheme.primary
                                                         else
@@ -414,6 +428,21 @@ fun RecordingDetailScreen(
                         HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
                         DetailRow(Icons.Default.Collections, "帧数", "${uiState.frames.size}")
                     }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showDetailDialog = false
+                        viewModel.deleteRecording()
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error,
+                    ),
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("删除", fontWeight = FontWeight.Medium)
                 }
             },
             confirmButton = {
