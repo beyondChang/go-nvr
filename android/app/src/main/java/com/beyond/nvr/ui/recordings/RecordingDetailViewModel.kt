@@ -31,27 +31,38 @@ class RecordingDetailViewModel(
     fun loadRecording(recordingId: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-            recordingRepository.getRecording(recordingId).fold(
-                onSuccess = { recording ->
-                    _uiState.value = _uiState.value.copy(
-                        recording = recording,
-                        isLoading = false,
-                    )
-                    // Load frames for MJPEG recordings
-                    if (recording.format == "mjpeg") {
-                        loadFrames(recordingId)
-                    }
-                    // Load all recordings for the same camera
-                    loadCameraRecordings(recording.cameraId, recordingId)
-                },
-                onFailure = { e ->
-                    _uiState.value = _uiState.value.copy(
-                        error = e.message ?: "Failed to load recording",
-                        isLoading = false,
-                    )
-                },
-            )
+            innerLoad(recordingId)
         }
+    }
+
+    fun selectRecording(recordingId: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(error = null)
+            innerLoad(recordingId)
+        }
+    }
+
+    private suspend fun innerLoad(recordingId: String) {
+        recordingRepository.getRecording(recordingId).fold(
+            onSuccess = { recording ->
+                _uiState.value = _uiState.value.copy(
+                    recording = recording,
+                    isLoading = false,
+                )
+                // Load frames for MJPEG recordings
+                if (recording.format == "mjpeg") {
+                    loadFrames(recordingId)
+                }
+                // Load all recordings for the same camera
+                loadCameraRecordings(recording.cameraId, recordingId)
+            },
+            onFailure = { e ->
+                _uiState.value = _uiState.value.copy(
+                    error = e.message ?: "Failed to load recording",
+                    isLoading = false,
+                )
+            },
+        )
     }
 
     private fun loadCameraRecordings(cameraId: String, currentRecordingId: String) {
@@ -68,10 +79,6 @@ class RecordingDetailViewModel(
                 onFailure = { /* ignore */ },
             )
         }
-    }
-
-    fun selectRecording(recordingId: String) {
-        loadRecording(recordingId)
     }
 
     fun previousRecording() {
