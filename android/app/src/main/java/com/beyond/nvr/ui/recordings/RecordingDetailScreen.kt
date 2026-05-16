@@ -99,20 +99,6 @@ fun RecordingDetailScreen(
                     }
                 },
                 actions = {
-                    if (uiState.cameraRecordings.isNotEmpty()) {
-                        TextButton(
-                            onClick = { viewModel.previousRecording() },
-                            enabled = uiState.currentIndex > 0,
-                        ) {
-                            Text("◀ 上一段", style = MaterialTheme.typography.labelMedium)
-                        }
-                        TextButton(
-                            onClick = { viewModel.nextRecording() },
-                            enabled = uiState.currentIndex < uiState.cameraRecordings.size - 1,
-                        ) {
-                            Text("下一段 ▶", style = MaterialTheme.typography.labelMedium)
-                        }
-                    }
                     IconButton(onClick = { showDeleteDialog = true }) {
                         Icon(Icons.Default.Delete, contentDescription = "删除")
                     }
