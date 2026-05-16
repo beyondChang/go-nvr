@@ -1,5 +1,6 @@
 package com.beyond.nvr.ui.recordings
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -251,14 +252,21 @@ fun RecordingDetailScreen(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                            ),
                         ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
+                            Column(modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 8.dp)) {
+                                // Title bar with accent line
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        Icons.Default.List,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
-                                        tint = MaterialTheme.colorScheme.primary,
+                                    Box(
+                                        modifier = Modifier
+                                            .width(3.dp)
+                                            .height(18.dp)
+                                            .clip(RoundedCornerShape(2.dp))
+                                            .then(MaterialTheme.colorScheme.primary.let { color ->
+                                                Modifier.background(color)
+                                            })
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
@@ -267,11 +275,17 @@ fun RecordingDetailScreen(
                                         fontWeight = FontWeight.Bold,
                                     )
                                     Spacer(modifier = Modifier.weight(1f))
-                                    Text(
-                                        text = "${uiState.currentIndex + 1} / ${uiState.cameraRecordings.size}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = MaterialTheme.colorScheme.secondaryContainer,
+                                    ) {
+                                        Text(
+                                            text = "${uiState.currentIndex + 1} / ${uiState.cameraRecordings.size}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                        )
+                                    }
                                 }
                                 Spacer(modifier = Modifier.height(10.dp))
                                 LazyRow(
@@ -279,29 +293,70 @@ fun RecordingDetailScreen(
                                 ) {
                                     itemsIndexed(uiState.cameraRecordings) { index, rec ->
                                         val isCurrent = index == uiState.currentIndex
-                                        SuggestionChip(
+                                        val startTime = FormatUtils.formatTimestamp(rec.startedAt, "HH:mm:ss")
+                                        val endTime = FormatUtils.formatTimestamp(rec.endedAt, "HH:mm:ss")
+                                        val durationStr = FormatUtils.formatDurationShort(rec.duration)
+                                        Card(
                                             onClick = { viewModel.selectRecording(rec.id) },
-                                            label = {
-                                                Text(
-                                                    text = FormatUtils.formatTimestamp(rec.startedAt, "HH:mm:ss"),
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                )
-                                            },
-                                            icon = if (isCurrent) {
-                                                { Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                                            } else null,
-                                            shape = RoundedCornerShape(8.dp),
-                                            colors = SuggestionChipDefaults.suggestionChipColors(
+                                            modifier = Modifier.width(140.dp),
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = CardDefaults.cardColors(
                                                 containerColor = if (isCurrent)
                                                     MaterialTheme.colorScheme.primaryContainer
                                                 else
                                                     MaterialTheme.colorScheme.surfaceVariant,
-                                                labelColor = if (isCurrent)
-                                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                                else
-                                                    MaterialTheme.colorScheme.onSurfaceVariant,
                                             ),
-                                        )
+                                            border = if (isCurrent) {
+                                                androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
+                                            } else null,
+                                            elevation = CardDefaults.cardElevation(
+                                                defaultElevation = if (isCurrent) 4.dp else 1.dp,
+                                            ),
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(10.dp),
+                                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    if (isCurrent) {
+                                                        Icon(
+                                                            Icons.Default.PlayArrow,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(12.dp),
+                                                            tint = MaterialTheme.colorScheme.primary,
+                                                        )
+                                                        Spacer(modifier = Modifier.width(3.dp))
+                                                    }
+                                                    Text(
+                                                        text = "$startTime → $endTime",
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                                                        color = if (isCurrent)
+                                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                                        else
+                                                            MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        maxLines = 1,
+                                                    )
+                                                }
+                                                Surface(
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    color = if (isCurrent)
+                                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                                    else
+                                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
+                                                ) {
+                                                    Text(
+                                                        text = durationStr,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                                        color = if (isCurrent)
+                                                            MaterialTheme.colorScheme.primary
+                                                        else
+                                                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
