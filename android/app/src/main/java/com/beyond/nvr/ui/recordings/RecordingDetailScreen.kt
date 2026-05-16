@@ -1,10 +1,14 @@
 package com.beyond.nvr.ui.recordings
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -23,8 +27,6 @@ import com.shuyu.gsyvideoplayer.video.StandardGSYVideoPlayer
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import com.beyond.nvr.ui.util.FormatUtils
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,7 +36,7 @@ fun RecordingDetailScreen(
     viewModel: RecordingDetailViewModel = koinViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var showDeleteDialog by remember { mutableStateOf(false) }
+    var showDetailDialog by remember { mutableStateOf(false) }
     val prefsRepo: PreferencesRepository = koinInject()
     val serverUrl by prefsRepo.serverUrl.collectAsState(initial = "")
 
@@ -99,8 +101,8 @@ fun RecordingDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showDeleteDialog = true }) {
-                        Icon(Icons.Default.Delete, contentDescription = "删除")
+                    IconButton(onClick = { showDetailDialog = true }) {
+                        Icon(Icons.Default.Info, contentDescription = "详情")
                     }
                 },
             )
@@ -156,9 +158,6 @@ fun RecordingDetailScreen(
             }
         } else {
             uiState.recording?.let { recording ->
-                val startedDisplay = FormatUtils.formatTimestamp(recording.startedAt, "yyyy-MM-dd HH:mm:ss")
-                val endedDisplay = FormatUtils.formatTimestamp(recording.endedAt, "yyyy-MM-dd HH:mm:ss")
-
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -232,7 +231,7 @@ fun RecordingDetailScreen(
                         }
                     }
 
-                    // ── Episode Selector ──
+                    // ── Episode Grid ──
                     if (uiState.cameraRecordings.isNotEmpty()) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
@@ -274,17 +273,22 @@ fun RecordingDetailScreen(
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(10.dp))
-                                LazyRow(
+                                LazyVerticalGrid(
+                                    columns = GridCells.Adaptive(minSize = 160.dp),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 340.dp),
                                 ) {
                                     itemsIndexed(uiState.cameraRecordings) { index, rec ->
                                         val isCurrent = index == uiState.currentIndex
                                         val startTime = FormatUtils.formatTimestamp(rec.startedAt, "HH:mm:ss")
                                         val endTime = FormatUtils.formatTimestamp(rec.endedAt, "HH:mm:ss")
-                                        val durationStr = FormatUtils.formatDurationShort(rec.duration)
+                                        val startDate = FormatUtils.formatTimestamp(rec.startedAt, "MM-dd")
                                         Card(
                                             onClick = { viewModel.selectRecording(rec.id) },
-                                            modifier = Modifier.width(140.dp),
+                                            modifier = Modifier.fillMaxWidth(),
                                             shape = RoundedCornerShape(10.dp),
                                             colors = CardDefaults.cardColors(
                                                 containerColor = if (isCurrent)
@@ -293,14 +297,14 @@ fun RecordingDetailScreen(
                                                     MaterialTheme.colorScheme.surfaceVariant,
                                             ),
                                             border = if (isCurrent) {
-                                                androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
+                                                BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
                                             } else null,
                                             elevation = CardDefaults.cardElevation(
                                                 defaultElevation = if (isCurrent) 4.dp else 1.dp,
                                             ),
                                         ) {
                                             Column(
-                                                modifier = Modifier.padding(10.dp),
+                                                modifier = Modifier.padding(12.dp),
                                                 verticalArrangement = Arrangement.spacedBy(2.dp),
                                             ) {
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -308,14 +312,14 @@ fun RecordingDetailScreen(
                                                         Icon(
                                                             Icons.Default.PlayArrow,
                                                             contentDescription = null,
-                                                            modifier = Modifier.size(12.dp),
+                                                            modifier = Modifier.size(14.dp),
                                                             tint = MaterialTheme.colorScheme.primary,
                                                         )
-                                                        Spacer(modifier = Modifier.width(3.dp))
+                                                        Spacer(modifier = Modifier.width(4.dp))
                                                     }
                                                     Text(
-                                                        text = "$startTime → $endTime",
-                                                        style = MaterialTheme.typography.labelMedium,
+                                                        text = "开始 $startTime",
+                                                        style = MaterialTheme.typography.bodySmall,
                                                         fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
                                                         color = if (isCurrent)
                                                             MaterialTheme.colorScheme.onPrimaryContainer
@@ -324,6 +328,14 @@ fun RecordingDetailScreen(
                                                         maxLines = 1,
                                                     )
                                                 }
+                                                Text(
+                                                    text = "结束 $endTime",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    fontWeight = FontWeight.Normal,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                    maxLines = 1,
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
                                                 Surface(
                                                     shape = RoundedCornerShape(4.dp),
                                                     color = if (isCurrent)
@@ -332,7 +344,7 @@ fun RecordingDetailScreen(
                                                         MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
                                                 ) {
                                                     Text(
-                                                        text = durationStr,
+                                                        text = FormatUtils.formatDurationShort(rec.duration),
                                                         style = MaterialTheme.typography.labelSmall,
                                                         modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
                                                         color = if (isCurrent)
@@ -348,143 +360,65 @@ fun RecordingDetailScreen(
                             }
                         }
                     }
-
-                    // Info card
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            DetailRow(Icons.Default.Fingerprint, "ID", recording.id)
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
-                            DetailRow(Icons.Default.AccountCircle, "摄像头 ID", recording.cameraId)
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
-                            DetailRow(Icons.Default.Code, "格式", recording.format.uppercase())
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
-DetailRow(Icons.Default.Timer, "时长", FormatUtils.formatDuration(recording.duration))
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
-DetailRow(Icons.Default.Storage, "文件大小", FormatUtils.formatFileSize(recording.fileSize))
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
-                            DetailRow(
-                                if (recording.merged) Icons.Default.CheckCircle else Icons.Default.Cancel,
-                                "已合并",
-                                if (recording.merged) "是" else "否",
-                            )
-
-                            if (recording.frameCount != null) {
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
-                                DetailRow(Icons.Default.Image, "帧数", recording.frameCount.toString())
-                            }
-
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
-                            DetailRow(Icons.Default.Schedule, "开始时间", startedDisplay)
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
-                            DetailRow(Icons.Default.Schedule, "结束时间", endedDisplay)
-                        }
-                    }
-
-                    // MJPEG frame info
-                    if (recording.format == "mjpeg" && uiState.frames.isNotEmpty()) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp),
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        Icons.Default.Collections,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(20.dp),
-                                        tint = MaterialTheme.colorScheme.primary,
-                                    )
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Text(
-                                        text = "帧列表",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold,
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "总帧数：${uiState.frames.size}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                )
-                            }
-                        }
-                    }
-
-                    // Actions
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        OutlinedButton(
-                            onClick = onBack,
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp),
-                        ) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("返回")
-                        }
-                        Button(
-                            onClick = { showDeleteDialog = true },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.error,
-                            ),
-                        ) {
-                            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("删除")
-                        }
-                    }
                 }
             }
         }
     }
 
-    if (showDeleteDialog) {
+    if (showDetailDialog && uiState.recording != null) {
+        val recording = uiState.recording!!
+        val startedDisplay = FormatUtils.formatTimestamp(recording.startedAt, "yyyy-MM-dd HH:mm:ss")
+        val endedDisplay = FormatUtils.formatTimestamp(recording.endedAt, "yyyy-MM-dd HH:mm:ss")
+
         AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
+            onDismissRequest = { showDetailDialog = false },
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        Icons.Default.Warning,
+                        Icons.Default.Info,
                         contentDescription = null,
                         modifier = Modifier.size(22.dp),
-                        tint = MaterialTheme.colorScheme.error,
+                        tint = MaterialTheme.colorScheme.primary,
                     )
                     Spacer(modifier = Modifier.width(10.dp))
-                    Text("删除录像？")
+                    Text("录像详情")
                 }
             },
-            text = { Text("此操作不可撤销。") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                    DetailRow(Icons.Default.Fingerprint, "ID", recording.id)
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+                    DetailRow(Icons.Default.AccountCircle, "摄像头 ID", recording.cameraId)
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+                    DetailRow(Icons.Default.Code, "格式", recording.format.uppercase())
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+                    DetailRow(Icons.Default.Timer, "时长", FormatUtils.formatDuration(recording.duration))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+                    DetailRow(Icons.Default.Storage, "文件大小", FormatUtils.formatFileSize(recording.fileSize))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+                    DetailRow(
+                        if (recording.merged) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                        "已合并",
+                        if (recording.merged) "是" else "否",
+                    )
+                    if (recording.frameCount != null) {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+                        DetailRow(Icons.Default.Image, "帧数", recording.frameCount.toString())
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+                    DetailRow(Icons.Default.Schedule, "开始时间", startedDisplay)
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+                    DetailRow(Icons.Default.Schedule, "结束时间", endedDisplay)
+
+                    if (recording.format == "mjpeg" && uiState.frames.isNotEmpty()) {
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+                        DetailRow(Icons.Default.Collections, "帧数", "${uiState.frames.size}")
+                    }
+                }
+            },
             confirmButton = {
-                Button(
-                    onClick = {
-                        showDeleteDialog = false
-                        viewModel.deleteRecording()
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                    ),
-                    shape = RoundedCornerShape(10.dp),
-                ) {
-                    Text("删除")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("取消")
+                TextButton(onClick = { showDetailDialog = false }) {
+                    Text("确定")
                 }
             },
         )
@@ -524,4 +458,3 @@ private fun DetailRow(
         )
     }
 }
-
