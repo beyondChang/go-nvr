@@ -22,8 +22,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.beyond.nvr.data.model.Recording
 import org.koin.compose.viewmodel.koinViewModel
 import com.beyond.nvr.ui.util.FormatUtils
-import java.text.SimpleDateFormat
-import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -217,15 +215,7 @@ private fun RecordingListItem(
     onClick: () -> Unit,
     onToggleSelect: () -> Unit,
 ) {
-    val formatter = remember { SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault()) }
-    val dateFormat = remember { SimpleDateFormat("MM/dd HH:mm", Locale.getDefault()) }
-
-    val displayDate: String = try {
-        val d = formatter.parse(recording.startedAt)
-        if (d != null) dateFormat.format(d) else recording.startedAt
-    } catch (_: Exception) {
-        recording.startedAt
-    }
+    val displayDate = FormatUtils.formatTimestamp(recording.startedAt)
 
     Card(
         modifier = Modifier

@@ -1,5 +1,10 @@
 package com.beyond.nvr.ui.util
 
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
 object FormatUtils {
 
     fun formatDuration(seconds: Double): String {
@@ -32,5 +37,16 @@ object FormatUtils {
             unitIndex++
         }
         return "%.1f %s".format(size, units[unitIndex])
+    }
+
+    /** Parse ISO-8601 / RFC3339 timestamp string and format in local timezone. */
+    fun formatTimestamp(isoString: String, pattern: String = "MM/dd HH:mm"): String {
+        return try {
+            val instant = Instant.parse(isoString)
+            val localDateTime = instant.atZone(ZoneId.systemDefault())
+            localDateTime.format(DateTimeFormatter.ofPattern(pattern, Locale.getDefault()))
+        } catch (_: Exception) {
+            isoString
+        }
     }
 }

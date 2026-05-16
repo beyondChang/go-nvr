@@ -21,8 +21,6 @@ import com.beyond.nvr.data.repository.PreferencesRepository
 import com.shuyu.gsyvideoplayer.video.StandardGSYVideoPlayer
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
-import java.text.SimpleDateFormat
-import java.util.*
 import com.beyond.nvr.ui.util.FormatUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -154,21 +152,8 @@ fun RecordingDetailScreen(
             }
         } else {
             uiState.recording?.let { recording ->
-                val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                val formatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-
-                val startedDisplay: String = try {
-                    val d = formatter.parse(recording.startedAt)
-                    if (d != null) dateFormat.format(d) else recording.startedAt
-                } catch (_: Exception) {
-                    recording.startedAt
-                }
-                val endedDisplay: String = try {
-                    val d = formatter.parse(recording.endedAt)
-                    if (d != null) dateFormat.format(d) else recording.endedAt
-                } catch (_: Exception) {
-                    recording.endedAt
-                }
+                val startedDisplay = FormatUtils.formatTimestamp(recording.startedAt, "yyyy-MM-dd HH:mm:ss")
+                val endedDisplay = FormatUtils.formatTimestamp(recording.endedAt, "yyyy-MM-dd HH:mm:ss")
 
                 Column(
                     modifier = Modifier
