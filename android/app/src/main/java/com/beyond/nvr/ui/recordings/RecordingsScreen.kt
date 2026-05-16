@@ -187,7 +187,7 @@ fun RecordingsScreen(
                 } else {
                     item {
                         Text(
-                            text = "共 ${uiState.recordings.size} 条录像",
+                            text = "共 ${uiState.totalRecordings} 条录像 · 第 ${uiState.currentPage + 1} 页",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -201,6 +201,45 @@ fun RecordingsScreen(
                             onClick = { onRecordingClick(recording.id) },
                             onToggleSelect = { viewModel.toggleSelection(recording.id) },
                         )
+                    }
+
+                    // Pagination controls
+                    item {
+                        val totalPages = if (uiState.totalRecordings > 0)
+                            (uiState.totalRecordings + uiState.pageSize - 1) / uiState.pageSize
+                        else 1
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            TextButton(
+                                onClick = { viewModel.previousPage() },
+                                enabled = uiState.currentPage > 0,
+                            ) {
+                                Icon(Icons.Default.ChevronLeft, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("上一页")
+                            }
+
+                            Text(
+                                text = "第 ${uiState.currentPage + 1}/${totalPages} 页",
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+
+                            TextButton(
+                                onClick = { viewModel.nextPage() },
+                                enabled = uiState.currentPage + 1 < totalPages,
+                            ) {
+                                Icon(Icons.Default.ChevronRight, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("下一页")
+                            }
+                        }
                     }
                 }
             }
