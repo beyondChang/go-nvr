@@ -1,5 +1,8 @@
 package com.beyond.nvr.ui.dashboard
 
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,11 +15,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.beyond.nvr.data.model.Camera
 import com.beyond.nvr.ui.util.StatusUtils
@@ -44,11 +51,15 @@ fun DashboardScreen(
                         Icon(
                             Icons.Default.Videocam,
                             contentDescription = null,
-                            modifier = Modifier.size(24.dp),
+                            modifier = Modifier.size(28.dp),
                             tint = MaterialTheme.colorScheme.primary,
                         )
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text("Go NVR")
+                        Text(
+                            "Go NVR",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp,
+                        )
                     }
                 },
                 actions = {
@@ -155,105 +166,52 @@ fun DashboardScreen(
                     .fillMaxSize()
                     .padding(padding),
                 contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                // Welcome
+                // ── Hero banner ──
                 item {
-                    Text(
-                        text = if (uiState.username.isNotBlank()) "你好，${uiState.username}" else "概览",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "NVR 监控系统",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    HeroBanner(username = uiState.username)
                 }
 
-                // Quick actions
+                // ── Main actions: 录像 & 摄像头 ──
                 item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    SectionHeader(
-                        icon = Icons.Default.FlashOn,
-                        title = "快捷操作",
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        ActionChip(
+                        HeroActionCard(
                             onClick = onNavigateToRecordings,
                             icon = Icons.Default.PlayCircle,
                             label = "录像",
-                            color = MaterialTheme.colorScheme.primary,
+                            subtitle = "查看回放记录",
+                            gradientColors = listOf(
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                            ),
                             modifier = Modifier.weight(1f),
                         )
-                        ActionChip(
+                        HeroActionCard(
                             onClick = onNavigateToCameras,
                             icon = Icons.Default.Videocam,
                             label = "摄像头",
-                            color = MaterialTheme.colorScheme.secondary,
+                            subtitle = "管理监控设备",
+                            gradientColors = listOf(
+                                MaterialTheme.colorScheme.secondary,
+                                MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
+                            ),
                             modifier = Modifier.weight(1f),
                         )
                     }
                 }
 
-                // Cameras section
-                item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    SectionHeader(
-                        icon = Icons.Default.Videocam,
-                        title = "摄像头 (${uiState.cameras.size})",
-                    )
-                }
-
-                if (uiState.cameras.isEmpty()) {
+                // ── Camera list section ──
+                if (uiState.cameras.isNotEmpty()) {
                     item {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            ),
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(32.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                            ) {
-                                Icon(
-                                    Icons.Default.VideocamOff,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(56.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = "未配置摄像头",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Medium,
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "点击下方按钮添加摄像头",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                OutlinedButton(onClick = onNavigateToCameras) {
-                                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("添加摄像头")
-                                }
-                            }
-                        }
+                        SectionHeader(
+                            icon = Icons.Default.Videocam,
+                            title = "摄像头列表 (${uiState.cameras.size})",
+                        )
                     }
-                } else {
                     val enabledCameras = uiState.cameras.filter { it.enabled }
                     items(enabledCameras, key = { it.id }) { camera ->
                         DashboardCameraCard(
@@ -262,6 +220,169 @@ fun DashboardScreen(
                         )
                     }
                 }
+
+                // ── Empty state ──
+                if (uiState.cameras.isEmpty()) {
+                    item {
+                        EmptyCamerasState(onAdd = onNavigateToCameras)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ═════════════════════════════════════════════════════════════
+//  Composable parts
+// ═════════════════════════════════════════════════════════════
+
+@Composable
+private fun HeroBanner(username: String) {
+    val primary = MaterialTheme.colorScheme.primary
+    val surface = MaterialTheme.colorScheme.surface
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        surface,
+                        primary.copy(alpha = 0.08f),
+                    ),
+                    start = Offset.Zero,
+                    end = Offset(1000f, 1000f),
+                ),
+            )
+            .border(
+                width = 1.dp,
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        primary.copy(alpha = 0.3f),
+                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f),
+                        Color.Transparent,
+                    ),
+                ),
+                shape = RoundedCornerShape(20.dp),
+            )
+            .padding(24.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (username.isNotBlank()) "欢迎回来，$username" else "系统概览",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "NVR 监控系统 · 随时查看",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Surface(
+                modifier = Modifier.size(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = primary.copy(alpha = 0.12f),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.Security,
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp),
+                        tint = primary,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeroActionCard(
+    onClick: () -> Unit,
+    icon: ImageVector,
+    label: String,
+    subtitle: String,
+    gradientColors: List<Color>,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        onClick = onClick,
+        modifier = modifier.height(140.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            gradientColors[0].copy(alpha = 0.08f),
+                            gradientColors[1].copy(alpha = 0.03f),
+                        ),
+                        start = Offset.Zero,
+                        end = Offset(500f, 500f),
+                    ),
+                ),
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(gradientColors[0]),
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Surface(
+                    modifier = Modifier.size(52.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    color = gradientColors[0].copy(alpha = 0.15f),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(28.dp),
+                            tint = gradientColors[0],
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Icon(
+                    Icons.Default.ArrowForwardIos,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                )
             }
         }
     }
@@ -276,62 +397,16 @@ private fun SectionHeader(
         Icon(
             icon,
             contentDescription = null,
-            modifier = Modifier.size(18.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.primary,
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = title,
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
         )
-    }
-}
-
-@Composable
-private fun ActionChip(
-    onClick: () -> Unit,
-    icon: ImageVector,
-    label: String,
-    color: Color,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        onClick = onClick,
-        modifier = modifier.height(64.dp),
-        shape = RoundedCornerShape(14.dp),
-        color = color.copy(alpha = 0.1f),
-        tonalElevation = 0.dp,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Surface(
-                modifier = Modifier.size(36.dp),
-                shape = RoundedCornerShape(10.dp),
-                color = color.copy(alpha = 0.15f),
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        icon,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = color,
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.width(14.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = color,
-            )
-        }
     }
 }
 
@@ -340,11 +415,18 @@ private fun DashboardCameraCard(
     camera: Camera,
     onClick: () -> Unit,
 ) {
+    val online = camera.status?.contains("online", ignoreCase = true)
+        ?: camera.status?.contains("connect", ignoreCase = true) ?: false
+    val statusText = if (online) "在线" else "离线"
+    val statusColor = if (online) Color(0xFF4CAF50) else Color(0xFFE53935)
+
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Row(
@@ -354,16 +436,17 @@ private fun DashboardCameraCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Surface(
-                modifier = Modifier.size(44.dp),
-                shape = RoundedCornerShape(10.dp),
-                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(56.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         Icons.Default.Videocam,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(28.dp),
+                        tint = if (online) MaterialTheme.colorScheme.primary
+                               else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                     )
                 }
             }
@@ -373,35 +456,91 @@ private fun DashboardCameraCard(
                     text = camera.name,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Status dot
                     Surface(
-                        modifier = Modifier.size(6.dp),
-                        shape = RoundedCornerShape(3.dp),
-                        color = StatusUtils.statusDotColor(camera.status),
+                        modifier = Modifier.size(8.dp),
+                        shape = MaterialTheme.shapes.extraSmall,
+                        color = statusColor,
                     ) {}
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = camera.status ?: "未知",
+                        text = statusText,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        color = statusColor,
                     )
-                    Text(
-                        text = " · ${camera.protocol.uppercase()}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    if (camera.url != null) {
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = camera.url,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
             Icon(
-                Icons.Default.ChevronRight,
+                Icons.Default.PlayArrow,
                 contentDescription = "查看",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                    .padding(4.dp),
+                tint = MaterialTheme.colorScheme.primary,
             )
+        }
+    }
+}
+
+@Composable
+private fun EmptyCamerasState(onAdd: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 40.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Surface(
+                modifier = Modifier.size(72.dp),
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.Videocam,
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp),
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "还没有添加摄像头",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "点击下方按钮添加您的第一个摄像头",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+            OutlinedButton(onClick = onAdd) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("添加摄像头")
+            }
         }
     }
 }
