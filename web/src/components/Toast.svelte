@@ -1,27 +1,12 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { toasts, dismissToast } from '$lib/toast';
 	import { fade, fly } from 'svelte/transition';
 	import { X } from 'lucide-svelte';
-
-	let toastContainer: HTMLElement;
-
-	// Position container to fixed top-right
-	onMount(() => {
-		if (toastContainer) {
-			toastContainer.style.position = 'fixed';
-			toastContainer.style.top = '1rem';
-			toastContainer.style.right = '1rem';
-			toastContainer.style.zIndex = '50';
-			toastContainer.style.display = 'flex';
-			toastContainer.style.flexDirection = 'column';
-			toastContainer.style.gap = '0.5rem';
-			toastContainer.style.alignItems = 'flex-end';
-		}
-	});
 </script>
 
-<div bind:this={toastContainer}>
+<div
+	style="position:fixed;top:5rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:0.5rem;align-items:flex-end;"
+>
 	{#each $toasts as toast (toast.id)}
 		<div
 			class="toast"

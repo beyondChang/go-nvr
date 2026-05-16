@@ -111,7 +111,7 @@ type HLSConfig struct {
 // Load reads a YAML config file and returns a Config with defaults applied.
 func Load(path string) (*Config, error) {
 	if path == "" {
-		return nil, fmt.Errorf("path must be provided")
+		return nil, fmt.Errorf("必须提供配置文件路径")
 	}
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -129,33 +129,33 @@ func Load(path string) (*Config, error) {
 // Save writes the Config to path as YAML using atomic write (temp file + rename).
 func Save(path string, cfg *Config) error {
 	if path == "" {
-		return fmt.Errorf("path must be provided")
+		return fmt.Errorf("必须提供配置文件路径")
 	}
 	if cfg == nil {
-		return fmt.Errorf("config is nil")
+		return fmt.Errorf("配置为空")
 	}
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
-		return fmt.Errorf("marshal config: %w", err)
+		return fmt.Errorf("序列化配置失败: %w", err)
 	}
 	// Temp file in same directory to ensure same filesystem for rename.
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".go-nvr.yaml.tmp")
 	if err != nil {
-		return fmt.Errorf("create temp file: %w", err)
+		return fmt.Errorf("创建临时文件失败: %w", err)
 	}
 	tmpPath := tmp.Name()
 	if _, err := tmp.Write(data); err != nil {
 		tmp.Close()
 		os.Remove(tmpPath)
-		return fmt.Errorf("write temp file: %w", err)
+		return fmt.Errorf("写入临时文件失败: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
 		os.Remove(tmpPath)
-		return fmt.Errorf("close temp file: %w", err)
+		return fmt.Errorf("关闭临时文件失败: %w", err)
 	}
 	if err := os.Rename(tmpPath, path); err != nil {
 		os.Remove(tmpPath)
-		return fmt.Errorf("rename temp file: %w", err)
+		return fmt.Errorf("重命名临时文件失败: %w", err)
 	}
 	return nil
 }
@@ -163,18 +163,18 @@ func Save(path string, cfg *Config) error {
 // Validate ensures required fields and basic constraints.
 func Validate(cfg *Config) error {
 	if cfg == nil {
-		return fmt.Errorf("config is nil")
+		return fmt.Errorf("配置为空")
 	}
 	// cameras must have id and url
 	for i, c := range cfg.Cameras {
 		if strings.TrimSpace(c.ID) == "" {
-			return fmt.Errorf("camera[%d].id is required", i)
+			return fmt.Errorf("摄像头[%d].id 必填", i)
 		}
 		if strings.TrimSpace(c.URL) == "" && c.Protocol != "onvif" {
-			return fmt.Errorf("camera[%d].url is required", i)
+			return fmt.Errorf("摄像头[%d].url 必填", i)
 		}
 		if (c.Protocol == "onvif" || c.Protocol == string(model.ProtoONVIF)) && strings.TrimSpace(c.ONVIFEndpoint) == "" && strings.TrimSpace(c.URL) == "" {
-			return fmt.Errorf("camera[%d].url or onvif_endpoint is required for ONVIF cameras", i)
+			return fmt.Errorf("摄像头[%d]: ONVIF摄像头需要提供 url 或 onvif_endpoint", i)
 		}
 		// Auto-populate: if url is set but onvif_endpoint is empty, copy url to onvif_endpoint
 		if (c.Protocol == "onvif" || c.Protocol == string(model.ProtoONVIF)) && strings.TrimSpace(c.ONVIFEndpoint) == "" && strings.TrimSpace(c.URL) != "" {
@@ -187,56 +187,56 @@ func Validate(cfg *Config) error {
 			// Old combined format like "rtsp_h264" — parse and validate
 			parsedProto, parsedEnc, err := model.ParseLegacyProtocol(proto)
 			if err != nil {
-				return fmt.Errorf("camera[%d].protocol invalid: %s", i, proto)
+				return fmt.Errorf("摄像头[%d].protocol 无效: %s", i, proto)
 			}
 			proto = parsedProto
 			enc = parsedEnc
 		}
 		if err := model.ValidateProtocolEncoding(proto, enc); err != nil {
-			return fmt.Errorf("camera[%d].%w", i, err)
+			return fmt.Errorf("摄像头[%d].%w", i, err)
 		}
 	}
 	// port ranges
 	if cfg.FTP.Port < 0 || cfg.FTP.Port > 65535 {
-		return fmt.Errorf("ftp port out of range: %d", cfg.FTP.Port)
+		return fmt.Errorf("FTP端口超出范围: %d", cfg.FTP.Port)
 	}
 	// Validate segment_duration
 	if dur, err := time.ParseDuration(cfg.Storage.SegmentDuration); err != nil {
-		return fmt.Errorf("storage.segment_duration invalid: %w", err)
+		return fmt.Errorf("存储分段时长无效: %w", err)
 	} else if dur > 5*time.Minute {
-		return fmt.Errorf("storage.segment_duration must be <= 5m on RPi 3B, got %s", cfg.Storage.SegmentDuration)
+		return fmt.Errorf("存储分段时长必须在 <= 5m，当前值: %s", cfg.Storage.SegmentDuration)
 	}
 	// Validate retention_days
 	if cfg.Cleanup.RetentionDays < 1 || cfg.Cleanup.RetentionDays > 3650 {
-		return fmt.Errorf("cleanup.retention_days must be between 1 and 3650, got %d", cfg.Cleanup.RetentionDays)
+		return fmt.Errorf("清理保留天数必须在1到3650之间，当前值: %d", cfg.Cleanup.RetentionDays)
 	}
 	// Validate disk_threshold_percent
 	if cfg.Cleanup.DiskThresholdPercent < 50 || cfg.Cleanup.DiskThresholdPercent > 99 {
-	return fmt.Errorf("cleanup.disk_threshold_percent must be between 50 and 99, got %d", cfg.Cleanup.DiskThresholdPercent)
+		return fmt.Errorf("清理磁盘阈值百分比必须在50到99之间，当前值: %d", cfg.Cleanup.DiskThresholdPercent)
 	}
 	// Validate observability.log_level
 	if cfg.Observability.LogLevel != "debug" && cfg.Observability.LogLevel != "info" && cfg.Observability.LogLevel != "warn" && cfg.Observability.LogLevel != "error" {
-		return fmt.Errorf("observability.log_level invalid: %s (must be debug/info/warn/error)", cfg.Observability.LogLevel)
+		return fmt.Errorf("日志级别无效: %s（必须为 debug/info/warn/error）", cfg.Observability.LogLevel)
 	}
 	// Validate observability.log_format
 	if cfg.Observability.LogFormat != "json" && cfg.Observability.LogFormat != "text" {
-		return fmt.Errorf("observability.log_format invalid: %s (must be json/text)", cfg.Observability.LogFormat)
+		return fmt.Errorf("日志格式无效: %s（必须为 json/text）", cfg.Observability.LogFormat)
 	}
 	if cfg.Merge.Enabled {
 		if _, err := time.ParseDuration(cfg.Merge.CheckInterval); err != nil {
-			return fmt.Errorf("invalid merge check_interval: %w", err)
+			return fmt.Errorf("合并检查间隔无效: %w", err)
 		}
 		if _, err := time.ParseDuration(cfg.Merge.WindowSize); err != nil {
-			return fmt.Errorf("invalid merge window_size: %w", err)
+			return fmt.Errorf("合并时间窗口无效: %w", err)
 		}
 		if cfg.Merge.BatchLimit <= 0 {
-			return fmt.Errorf("merge batch_limit must be positive")
+			return fmt.Errorf("合并批处理限制必须为正数")
 		}
 		if _, err := time.ParseDuration(cfg.Merge.MinSegmentAge); err != nil {
-			return fmt.Errorf("invalid merge min_segment_age: %w", err)
+			return fmt.Errorf("合并分段最小时长无效: %w", err)
 		}
 		if cfg.Merge.MinSegmentsToMerge < 2 {
-			return fmt.Errorf("merge min_segments_to_merge must be at least 2")
+			return fmt.Errorf("合并参数 min_segments_to_merge 必须至少为2")
 		}
 	}
 	return nil

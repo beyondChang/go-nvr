@@ -11,6 +11,7 @@
   import Dashboard from './routes/Dashboard.svelte';
 
   import Header from './components/Header.svelte';
+  import Toast from './components/Toast.svelte';
 
   // Parse hash-based routes (hoisted — function declarations are available before this line)
   function parseRoute(hash: string) {
@@ -115,3 +116,5 @@
       <Dashboard />
     {/if}
   {/if}
+
+<Toast />

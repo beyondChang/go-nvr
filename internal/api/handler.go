@@ -170,7 +170,7 @@ func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 			resp.Checks["database"] = HealthCheck{Status: "ok"}
 		}
 	} else {
-		resp.Checks["database"] = HealthCheck{Status: "error", Message: "database not configured"}
+		resp.Checks["database"] = HealthCheck{Status: "error", Message: "数据库未配置"}
 		hasError = true
 	}
 
@@ -197,7 +197,7 @@ func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	} else {
-		resp.Checks["storage"] = HealthCheck{Status: "error", Message: "storage not configured"}
+		resp.Checks["storage"] = HealthCheck{Status: "error", Message: "存储未配置"}
 		hasError = true
 	}
 
@@ -232,7 +232,7 @@ func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 	// Database must be ok
 	allOK := true
 	if h.db == nil {
-		checks["database"] = HealthCheck{Status: "error", Message: "database not configured"}
+		checks["database"] = HealthCheck{Status: "error", Message: "数据库未配置"}
 		allOK = false
 	} else {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
@@ -247,7 +247,7 @@ func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 	// Storage must be < 95%
 	if h.store == nil {
-		checks["storage"] = HealthCheck{Status: "error", Message: "storage not configured"}
+		checks["storage"] = HealthCheck{Status: "error", Message: "存储未配置"}
 		allOK = false
 	} else {
 		total, used, err := h.store.GetDiskUsage()
@@ -303,7 +303,7 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
+		json.NewEncoder(w).Encode(map[string]string{"error": "未授权"})
 	}
 }
 
@@ -354,7 +354,7 @@ func (h *Handler) handleListRecordings(w http.ResponseWriter, r *http.Request) {
 
 	recordings, err := h.db.ListRecordings(ctx, filter)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to list recordings")
+		writeError(w, http.StatusInternalServerError, "获取录像列表失败")
 		return
 	}
 
@@ -377,11 +377,11 @@ func (h *Handler) handleGetRecording(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	rec, err := h.db.GetRecording(r.Context(), id)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to get recording")
+		writeError(w, http.StatusInternalServerError, "获取录像失败")
 		return
 	}
 	if rec == nil {
-		writeError(w, http.StatusNotFound, "recording not found")
+		writeError(w, http.StatusNotFound, "录像未找到")
 		return
 	}
 	writeJSON(w, http.StatusOK, rec)
@@ -393,17 +393,17 @@ func (h *Handler) handleDeleteRecording(w http.ResponseWriter, r *http.Request) 
 
 	rec, err := h.db.GetRecording(ctx, id)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to get recording")
+		writeError(w, http.StatusInternalServerError, "获取录像失败")
 		return
 	}
 	if rec == nil {
-		writeError(w, http.StatusNotFound, "recording not found")
+		writeError(w, http.StatusNotFound, "录像未找到")
 		return
 	}
 
 	// Delete from DB first (authoritative source)
 	if err := h.db.DeleteRecording(ctx, id); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to delete recording")
+		writeError(w, http.StatusInternalServerError, "删除录像失败")
 		return
 	}
 
@@ -424,15 +424,15 @@ func (h *Handler) handleBatchDeleteRecordings(w http.ResponseWriter, r *http.Req
 		IDs []string `json:"ids"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, "无效的请求体")
 		return
 	}
 	if len(body.IDs) == 0 {
-		writeError(w, http.StatusBadRequest, "ids must not be empty")
+		writeError(w, http.StatusBadRequest, "ID列表不能为空")
 		return
 	}
 	if len(body.IDs) > 100 {
-		writeError(w, http.StatusBadRequest, "ids must not exceed 100")
+		writeError(w, http.StatusBadRequest, "ID列表不能超过100个")
 		return
 	}
 	// Fetch file paths before batch delete
@@ -447,7 +447,7 @@ func (h *Handler) handleBatchDeleteRecordings(w http.ResponseWriter, r *http.Req
 	// Delete DB records (transaction)
 	deleted, err := h.db.DeleteRecordingsBatch(ctx, body.IDs)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to delete recordings")
+		writeError(w, http.StatusInternalServerError, "批量删除录像失败")
 		return
 	}
 
@@ -482,16 +482,16 @@ func (h *Handler) handleDownloadRecording(w http.ResponseWriter, r *http.Request
 	id := chi.URLParam(r, "id")
 	rec, err := h.db.GetRecording(r.Context(), id)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to get recording")
+		writeError(w, http.StatusInternalServerError, "获取录像失败")
 		return
 	}
 	if rec == nil {
-		writeError(w, http.StatusNotFound, "recording not found")
+		writeError(w, http.StatusNotFound, "录像未找到")
 		return
 	}
 
 	if rec.FilePath == "" {
-		writeError(w, http.StatusNotFound, "file not available")
+		writeError(w, http.StatusNotFound, "文件不可用")
 		return
 	}
 
@@ -516,20 +516,20 @@ func (h *Handler) handleDownloadRecording(w http.ResponseWriter, r *http.Request
 				}
 			}
 		}
-		http.Error(w, "frame not found", http.StatusNotFound)
+		http.Error(w, "帧未找到", http.StatusNotFound)
 		return
 	}
 
 	filePath := rec.FilePath
 	info, err := os.Stat(filePath)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "file not found")
+		writeError(w, http.StatusNotFound, "文件未找到")
 		return
 	}
 	if info.IsDir() {
 		entries, err := os.ReadDir(filePath)
 		if err != nil || len(entries) == 0 {
-			writeError(w, http.StatusNotFound, "no files in recording directory")
+			writeError(w, http.StatusNotFound, "录像目录中没有文件")
 			return
 		}
 		for _, e := range entries {
@@ -552,33 +552,33 @@ func (h *Handler) handleListFrames(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	rec, err := h.db.GetRecording(r.Context(), id)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to get recording")
+		writeError(w, http.StatusInternalServerError, "获取录像失败")
 		return
 	}
 	if rec == nil {
-		writeError(w, http.StatusNotFound, "recording not found")
+		writeError(w, http.StatusNotFound, "录像未找到")
 		return
 	}
 
 	if rec.Format != "mjpeg" {
-		writeError(w, http.StatusBadRequest, "not a JPEG recording")
+		writeError(w, http.StatusBadRequest, "不是JPEG录像")
 		return
 	}
 
 	filePath := rec.FilePath
 	info, err := os.Stat(filePath)
 	if err != nil {
-		writeError(w, http.StatusNotFound, "recording files not found")
+		writeError(w, http.StatusNotFound, "录像文件未找到")
 		return
 	}
 	if !info.IsDir() {
-		writeError(w, http.StatusNotFound, "recording is not a directory")
+		writeError(w, http.StatusNotFound, "录像不是目录格式")
 		return
 	}
 
 	entries, err := os.ReadDir(filePath)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to read recording directory")
+		writeError(w, http.StatusInternalServerError, "读取录像目录失败")
 		return
 	}
 
@@ -640,7 +640,7 @@ func cameraRowForAPI(row *storage.CameraRow) {
 func (h *Handler) handleListCameras(w http.ResponseWriter, r *http.Request) {
 	cameras, err := h.db.ListCameras(r.Context())
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to list cameras")
+		writeError(w, http.StatusInternalServerError, "获取摄像头列表失败")
 		return
 	}
 	if cameras == nil {
@@ -679,19 +679,19 @@ func (h *Handler) handleStats(w http.ResponseWriter, r *http.Request) {
 
 	total, used, err := h.store.GetDiskUsage()
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to get disk usage")
+		writeError(w, http.StatusInternalServerError, "获取磁盘使用量失败")
 		return
 	}
 
 	count, err := h.db.CountRecordings(ctx)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to count recordings")
+		writeError(w, http.StatusInternalServerError, "统计录像数量失败")
 		return
 	}
 
 	cameras, err := h.db.ListCameras(ctx)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to count cameras")
+		writeError(w, http.StatusInternalServerError, "统计摄像头数量失败")
 		return
 	}
 
@@ -713,7 +713,7 @@ func (h *Handler) handleStatsTrends(w http.ResponseWriter, r *http.Request) {
 	}
 	trends, err := h.db.GetRecordingTrends(r.Context(), days)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to get recording trends")
+		writeError(w, http.StatusInternalServerError, "获取录像趋势失败")
 		return
 	}
 	writeJSON(w, http.StatusOK, trends)
@@ -752,19 +752,19 @@ func (h *Handler) handleCreateCamera(w http.ResponseWriter, r *http.Request) {
 		Encoding        string  `json:"encoding"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, "无效的请求体")
 		return
 	}
 	if body.Name == "" {
-		writeError(w, http.StatusBadRequest, "name is required")
+		writeError(w, http.StatusBadRequest, "名称必填")
 		return
 	}
 	if body.Protocol == "" {
-		writeError(w, http.StatusBadRequest, "protocol is required")
+		writeError(w, http.StatusBadRequest, "协议必填")
 		return
 	}
 	if !validProtocols[body.Protocol] {
-		writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid protocol %q, must be one of: rtsp, http, onvif", body.Protocol))
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("无效的协议 %q，必须是 rtsp、http 或 onvif 之一", body.Protocol))
 		return
 	}
 	// ONVIF cameras: accept url OR onvif_endpoint
@@ -774,7 +774,7 @@ func (h *Handler) handleCreateCamera(w http.ResponseWriter, r *http.Request) {
 			endpoint = body.URL
 		}
 		if endpoint == "" {
-			writeError(w, http.StatusBadRequest, "url or onvif_endpoint is required for ONVIF cameras")
+			writeError(w, http.StatusBadRequest, "ONVIF摄像头需要提供url或onvif_endpoint")
 			return
 		}
 		body.ONVIFEndpoint = endpoint
@@ -784,13 +784,13 @@ func (h *Handler) handleCreateCamera(w http.ResponseWriter, r *http.Request) {
 			existingCams, _ := h.db.ListCameras(r.Context())
 			for _, ec := range existingCams {
 				if ec.Protocol == "onvif" && ec.ONVIFEndpoint == body.ONVIFEndpoint {
-					writeError(w, http.StatusConflict, "ONVIF camera with this endpoint already exists")
+					writeError(w, http.StatusConflict, "该ONVIF端点已被其他摄像头使用")
 					return
 				}
 			}
 		}
 	} else if body.URL == "" {
-		writeError(w, http.StatusBadRequest, "url is required")
+		writeError(w, http.StatusBadRequest, "URL必填")
 		return
 	}
 	// Normalize protocol — handle legacy combined formats
@@ -799,7 +799,7 @@ func (h *Handler) handleCreateCamera(w http.ResponseWriter, r *http.Request) {
 	if strings.Contains(proto, "_") {
 		parsedProto, parsedEnc, err := model.ParseLegacyProtocol(proto)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid protocol %q", proto))
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("无效的协议 %q", proto))
 			return
 		}
 		proto = parsedProto
@@ -835,12 +835,12 @@ func (h *Handler) handleCreateCamera(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.camMgr == nil {
-		writeError(w, http.StatusInternalServerError, "camera manager not available")
+		writeError(w, http.StatusInternalServerError, "摄像头管理器不可用")
 		return
 	}
 	id, err := h.camMgr.AddCamera(r.Context(), cam)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to add camera: %v", err))
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("添加摄像头失败: %v", err))
 		return
 	}
 	// Persist DB-only metadata fields
@@ -872,11 +872,11 @@ func (h *Handler) handleGetCamera(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	row, err := h.db.GetCamera(r.Context(), id)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to get camera")
+		writeError(w, http.StatusInternalServerError, "获取摄像头失败")
 		return
 	}
 	if row == nil {
-		writeError(w, http.StatusNotFound, "camera not found")
+		writeError(w, http.StatusNotFound, "摄像头未找到")
 		return
 	}
 	// Inject recorder status
@@ -894,7 +894,7 @@ func (h *Handler) handleGetCamera(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleUpdateCamera(w http.ResponseWriter, r *http.Request) {
 	if h.camMgr == nil {
-		writeError(w, http.StatusInternalServerError, "camera manager not available")
+		writeError(w, http.StatusInternalServerError, "摄像头管理器不可用")
 		return
 	}
 	id := chi.URLParam(r, "id")
@@ -918,7 +918,7 @@ func (h *Handler) handleUpdateCamera(w http.ResponseWriter, r *http.Request) {
 		StreamEncoding *string `json:"stream_encoding"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, "无效的请求体")
 		return
 	}
 
@@ -965,16 +965,16 @@ func (h *Handler) handleUpdateCamera(w http.ResponseWriter, r *http.Request) {
 	_, err := h.camMgr.UpdateCamera(r.Context(), id, updates)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			writeError(w, http.StatusNotFound, "camera not found")
+			writeError(w, http.StatusNotFound, "摄像头未找到")
 			return
 		}
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("failed to update camera: %v", err))
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("更新摄像头失败: %v", err))
 		return
 	}
 	// Return updated CameraRow with status
 	row, err := h.db.GetCamera(r.Context(), id)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to get camera")
+		writeError(w, http.StatusInternalServerError, "获取摄像头失败")
 		return
 	}
 	if row != nil {
@@ -1009,7 +1009,7 @@ func (h *Handler) handleDeleteCamera(w http.ResponseWriter, r *http.Request) {
 	// Always delete from DB to handle both "camera in config" and "camera only in DB" cases.
 	dbErr := h.db.DeleteCamera(ctx, id)
 	if !removedFromConfig && dbErr != nil {
-		writeError(w, http.StatusNotFound, "camera not found")
+		writeError(w, http.StatusNotFound, "摄像头未找到")
 		return
 	}
 	if dbErr != nil {
@@ -1024,7 +1024,7 @@ func (h *Handler) handleDeleteCamera(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleONVIFCameraProfiles(w http.ResponseWriter, r *http.Request) {
 	cameraID := chi.URLParam(r, "id")
 	if cameraID == "" {
-		writeError(w, http.StatusBadRequest, "camera ID is required")
+		writeError(w, http.StatusBadRequest, "摄像头ID必填")
 		return
 	}
 
@@ -1048,7 +1048,7 @@ func (h *Handler) handleONVIFDiscover(w http.ResponseWriter, r *http.Request) {
 		req.Timeout = 5
 	}
 	if req.Timeout > 30 {
-		writeError(w, http.StatusBadRequest, "timeout must be between 1 and 30 seconds")
+		writeError(w, http.StatusBadRequest, "超时时间必须在1到30秒之间")
 		return
 	}
 
@@ -1057,7 +1057,7 @@ func (h *Handler) handleONVIFDiscover(w http.ResponseWriter, r *http.Request) {
 
 	devices, err := onvif.Discover(ctx, time.Duration(req.Timeout)*time.Second)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("discovery failed: %v", err))
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("设备发现失败: %v", err))
 		return
 	}
 	if devices == nil {
@@ -1069,18 +1069,18 @@ func (h *Handler) handleONVIFDiscover(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleONVIFDeviceDetail(w http.ResponseWriter, r *http.Request) {
 	ip := chi.URLParam(r, "ip")
 	if ip == "" {
-		writeError(w, http.StatusBadRequest, "IP address is required")
+		writeError(w, http.StatusBadRequest, "IP地址必填")
 		return
 	}
 	ctx := r.Context()
 	client := onvif.NewClient(fmt.Sprintf("http://%s/onvif/device_service", ip), "", "")
 	if err := client.Connect(ctx); err != nil {
-		writeError(w, http.StatusBadGateway, fmt.Sprintf("failed to connect to device: %v", err))
+		writeError(w, http.StatusBadGateway, fmt.Sprintf("连接设备失败: %v", err))
 		return
 	}
 	info, err := client.GetDeviceInformation(ctx)
 	if err != nil {
-		writeError(w, http.StatusBadGateway, fmt.Sprintf("failed to get device info: %v", err))
+		writeError(w, http.StatusBadGateway, fmt.Sprintf("获取设备信息失败: %v", err))
 		return
 	}
 	profiles, err := client.GetProfiles(ctx)
@@ -1095,17 +1095,17 @@ func (h *Handler) handleONVIFDeviceDetail(w http.ResponseWriter, r *http.Request
 
 func (h *Handler) requireONVIF(w http.ResponseWriter, r *http.Request) bool {
 	if h.db == nil {
-		writeError(w, http.StatusNotFound, "camera not found")
+		writeError(w, http.StatusNotFound, "摄像头未找到")
 		return false
 	}
 	cameraID := chi.URLParam(r, "id")
 	camera, err := h.db.GetCamera(r.Context(), cameraID)
 	if err != nil || camera == nil {
-		writeError(w, http.StatusNotFound, "camera not found")
+		writeError(w, http.StatusNotFound, "摄像头未找到")
 		return false
 	}
 	if camera.Protocol != "onvif" {
-		writeError(w, http.StatusBadRequest, "PTZ control is only available for ONVIF cameras")
+		writeError(w, http.StatusBadRequest, "PTZ控制仅适用于ONVIF摄像头")
 		return false
 	}
 	return true
@@ -1122,18 +1122,18 @@ func (h *Handler) handlePTZMove(w http.ResponseWriter, r *http.Request) {
 		Zoom  float64 `json:"zoom"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, "无效的请求体")
 		return
 	}
 	if req.Mode != "continuous" && req.Mode != "absolute" && req.Mode != "relative" {
-		writeError(w, http.StatusBadRequest, "mode must be continuous, absolute, or relative")
+		writeError(w, http.StatusBadRequest, "模式必须为 continuous、absolute 或 relative")
 		return
 	}
 	if !h.requireONVIF(w, r) {
 		return
 	}
 	if h.camMgr == nil {
-		writeError(w, http.StatusInternalServerError, "camera manager not available")
+		writeError(w, http.StatusInternalServerError, "摄像头管理器不可用")
 		return
 	}
 	ptz, err := h.camMgr.GetONVIFPTZController(r.Context(), cameraID)
@@ -1151,7 +1151,7 @@ func (h *Handler) handlePTZMove(w http.ResponseWriter, r *http.Request) {
 		err = ptz.RelativeMove(r.Context(), vec)
 	}
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("PTZ command failed: %v", err))
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("PTZ命令失败: %v", err))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -1163,7 +1163,7 @@ func (h *Handler) handlePTZStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.camMgr == nil {
-		writeError(w, http.StatusInternalServerError, "camera manager not available")
+		writeError(w, http.StatusInternalServerError, "摄像头管理器不可用")
 		return
 	}
 	ptz, err := h.camMgr.GetONVIFPTZController(r.Context(), cameraID)
@@ -1172,7 +1172,7 @@ func (h *Handler) handlePTZStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := ptz.Stop(r.Context(), true, true); err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("PTZ stop failed: %v", err))
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("PTZ停止失败: %v", err))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "stopped"})
@@ -1184,7 +1184,7 @@ func (h *Handler) handlePTZStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.camMgr == nil {
-		writeError(w, http.StatusInternalServerError, "camera manager not available")
+		writeError(w, http.StatusInternalServerError, "摄像头管理器不可用")
 		return
 	}
 	ptz, err := h.camMgr.GetONVIFPTZController(r.Context(), cameraID)
@@ -1194,7 +1194,7 @@ func (h *Handler) handlePTZStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	pos, moving, err := ptz.GetStatus(r.Context())
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("get PTZ status failed: %v", err))
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("获取PTZ状态失败: %v", err))
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{
@@ -1221,7 +1221,7 @@ func (h *Handler) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if snapshotURL == "" {
-		http.Error(w, "Snapshot URL not configured", http.StatusNotFound)
+		http.Error(w, "未配置快照URL", http.StatusNotFound)
 		return
 	}
 
@@ -1250,19 +1250,19 @@ func (h *Handler) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		logger.Warn("failed to fetch snapshot", "camera_id", cameraID, "error", err)
-		http.Error(w, "Failed to fetch snapshot", http.StatusBadGateway)
+		http.Error(w, "获取快照失败", http.StatusBadGateway)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		http.Error(w, "Camera returned error", http.StatusBadGateway)
+		http.Error(w, "摄像头返回了错误", http.StatusBadGateway)
 		return
 	}
 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024)) // 10MB max
 	if err != nil || len(data) == 0 {
-		http.Error(w, "Failed to read snapshot", http.StatusBadGateway)
+		http.Error(w, "读取快照失败", http.StatusBadGateway)
 		return
 	}
 
@@ -1324,24 +1324,24 @@ func (h *Handler) handleHLSStream(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
 	if h.hlsMgr == nil || h.camMgr == nil {
-		writeError(w, http.StatusInternalServerError, "HLS not available")
+		writeError(w, http.StatusInternalServerError, "HLS功能不可用")
 		return
 	}
 
 	// Get camera to check protocol
 	cam, err := h.db.GetCamera(r.Context(), id)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to get camera")
+		writeError(w, http.StatusInternalServerError, "获取摄像头失败")
 		return
 	}
 	if cam == nil {
-		writeError(w, http.StatusNotFound, "camera not found")
+		writeError(w, http.StatusNotFound, "摄像头未找到")
 		return
 	}
 
 	// Only H.264/H.265/ONVIF cameras support HLS
 	if cam.Protocol != string(model.ProtoRTSP) && cam.Protocol != string(model.ProtoONVIF) {
-		writeError(w, http.StatusBadRequest, "camera protocol does not support HLS streaming")
+		writeError(w, http.StatusBadRequest, "该摄像头协议不支持HLS直播")
 		return
 	}
 
@@ -1349,7 +1349,7 @@ func (h *Handler) handleHLSStream(w http.ResponseWriter, r *http.Request) {
 	if !h.hlsMgr.IsActive(id) {
 		rec := h.camMgr.GetRecorder(id)
 		if rec == nil {
-			writeError(w, http.StatusBadRequest, "camera recorder not running")
+			writeError(w, http.StatusBadRequest, "摄像头录像器未运行")
 			return
 		}
 
@@ -1365,17 +1365,17 @@ func (h *Handler) handleHLSStream(w http.ResponseWriter, r *http.Request) {
 			sps := h264Rec.SPS()
 			pps := h264Rec.PPS()
 			if sps == nil || pps == nil {
-				writeError(w, http.StatusServiceUnavailable, "SPS/PPS not available yet, waiting for video stream")
+				writeError(w, http.StatusServiceUnavailable, "SPS/PPS尚未就绪，等待视频流中")
 				return
 			}
 
 			err := h.hlsMgr.StartStream(id, sps, pps, hlsMaxFPS)
 			if err != nil {
 				if err == hls.ErrMaxStreamsReached {
-					writeError(w, http.StatusServiceUnavailable, "maximum HLS streams reached")
+					writeError(w, http.StatusServiceUnavailable, "达到HLS最大流数量限制")
 				} else {
-					logger.Error("failed to start HLS stream", "camera_id", id, "error", err)
-					writeError(w, http.StatusInternalServerError, "failed to start HLS stream")
+					logger.Error("启动HLS流失败", "camera_id", id, "error", err)
+					writeError(w, http.StatusInternalServerError, "启动HLS流失败")
 				}
 				return
 			}
@@ -1400,17 +1400,17 @@ func (h *Handler) handleHLSStream(w http.ResponseWriter, r *http.Request) {
 			sps := h265Rec.SPS()
 			pps := h265Rec.PPS()
 			if vps == nil || sps == nil || pps == nil {
-				writeError(w, http.StatusServiceUnavailable, "VPS/SPS/PPS not available yet, waiting for video stream")
+				writeError(w, http.StatusServiceUnavailable, "VPS/SPS/PPS尚未就绪，等待视频流中")
 				return
 			}
 
 			err := h.hlsMgr.StartStreamH265(id, vps, sps, pps, hlsMaxFPS)
 			if err != nil {
 				if err == hls.ErrMaxStreamsReached {
-					writeError(w, http.StatusServiceUnavailable, "maximum HLS streams reached")
+					writeError(w, http.StatusServiceUnavailable, "达到HLS最大流数量限制")
 				} else {
 					logger.Error("failed to start HLS H265 stream", "camera_id", id, "error", err)
-					writeError(w, http.StatusInternalServerError, "failed to start HLS stream")
+					writeError(w, http.StatusInternalServerError, "启动HLS流失败")
 				}
 				return
 			}
@@ -1433,7 +1433,7 @@ func (h *Handler) handleHLSStream(w http.ResponseWriter, r *http.Request) {
 			// ONVIF recorder delegates to H264/H265 internally
 			delegate := onvifRec.Delegate()
 			if delegate == nil {
-				writeError(w, http.StatusServiceUnavailable, "ONVIF recorder delegate not available yet")
+				writeError(w, http.StatusServiceUnavailable, "ONVIF录像器委托尚未就绪")
 				return
 			}
 			// Unwrap the delegate and handle as H264/H265
@@ -1441,15 +1441,15 @@ func (h *Handler) handleHLSStream(w http.ResponseWriter, r *http.Request) {
 				sps := h264Rec.SPS()
 				pps := h264Rec.PPS()
 				if sps == nil || pps == nil {
-					writeError(w, http.StatusServiceUnavailable, "SPS/PPS not available yet, waiting for video stream")
+					writeError(w, http.StatusServiceUnavailable, "SPS/PPS尚未就绪，等待视频流中")
 					return
 				}
 				err := h.hlsMgr.StartStream(id, sps, pps, hlsMaxFPS)
 				if err != nil {
 					if err == hls.ErrMaxStreamsReached {
-						writeError(w, http.StatusServiceUnavailable, "maximum HLS streams reached")
+						writeError(w, http.StatusServiceUnavailable, "达到HLS最大流数量限制")
 					} else {
-						writeError(w, http.StatusInternalServerError, "failed to start HLS stream")
+						writeError(w, http.StatusInternalServerError, "启动HLS流失败")
 					}
 					return
 				}
@@ -1461,15 +1461,15 @@ func (h *Handler) handleHLSStream(w http.ResponseWriter, r *http.Request) {
 				sps := h265Rec.SPS()
 				pps := h265Rec.PPS()
 				if vps == nil || sps == nil || pps == nil {
-					writeError(w, http.StatusServiceUnavailable, "VPS/SPS/PPS not available yet, waiting for video stream")
+					writeError(w, http.StatusServiceUnavailable, "VPS/SPS/PPS尚未就绪，等待视频流中")
 					return
 				}
 				err := h.hlsMgr.StartStreamH265(id, vps, sps, pps, hlsMaxFPS)
 				if err != nil {
 					if err == hls.ErrMaxStreamsReached {
-						writeError(w, http.StatusServiceUnavailable, "maximum HLS streams reached")
+						writeError(w, http.StatusServiceUnavailable, "达到HLS最大流数量限制")
 					} else {
-						writeError(w, http.StatusInternalServerError, "failed to start HLS stream")
+						writeError(w, http.StatusInternalServerError, "启动HLS流失败")
 					}
 					return
 				}
@@ -1477,17 +1477,17 @@ func (h *Handler) handleHLSStream(w http.ResponseWriter, r *http.Request) {
 					_ = h.hlsMgr.WriteH265(id, pts, au)
 				}
 			} else {
-				writeError(w, http.StatusBadRequest, "ONVIF recorder delegate type does not support HLS")
+				writeError(w, http.StatusBadRequest, "ONVIF录像器委托类型不支持HLS")
 				return
 			}
 		} else {
-			writeError(w, http.StatusBadRequest, "camera recorder does not support HLS")
+			writeError(w, http.StatusBadRequest, "摄像头录像器不支持HLS")
 			return
 		}
 	}
 	// Proxy to muxer handler
 	if !h.hlsMgr.Handle(id, w, r) {
-		writeError(w, http.StatusServiceUnavailable, "HLS stream not available")
+		writeError(w, http.StatusServiceUnavailable, "HLS流不可用")
 		return
 	}
 }
@@ -1496,7 +1496,7 @@ func (h *Handler) handleStopHLSStream(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
 	if h.hlsMgr == nil {
-		writeError(w, http.StatusInternalServerError, "HLS not available")
+		writeError(w, http.StatusInternalServerError, "HLS功能不可用")
 		return
 	}
 
@@ -1513,7 +1513,7 @@ func (h *Handler) handleStopHLSStream(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	if h.config == nil {
-		writeError(w, http.StatusInternalServerError, "config not available")
+		writeError(w, http.StatusInternalServerError, "配置不可用")
 		return
 	}
 
@@ -1537,7 +1537,7 @@ func (h *Handler) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	if h.config == nil {
-		writeError(w, http.StatusInternalServerError, "config not available")
+		writeError(w, http.StatusInternalServerError, "配置不可用")
 		return
 	}
 
@@ -1555,7 +1555,7 @@ func (h *Handler) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, "无效的请求体")
 		return
 	}
 
@@ -1563,21 +1563,21 @@ func (h *Handler) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 	if body.Cleanup != nil {
 		if body.Cleanup.RetentionDays != nil {
 			if *body.Cleanup.RetentionDays < 1 {
-				writeError(w, http.StatusBadRequest, "retention_days must be >= 1")
+				writeError(w, http.StatusBadRequest, "保留天数必须 >= 1")
 				return
 			}
 			h.config.Cleanup.RetentionDays = *body.Cleanup.RetentionDays
 		}
 		if body.Cleanup.DiskThresholdPercent != nil {
 			if *body.Cleanup.DiskThresholdPercent < 1 || *body.Cleanup.DiskThresholdPercent > 100 {
-				writeError(w, http.StatusBadRequest, "disk_threshold_percent must be between 1 and 100")
+				writeError(w, http.StatusBadRequest, "磁盘阈值百分比必须在1到100之间")
 				return
 			}
 			h.config.Cleanup.DiskThresholdPercent = *body.Cleanup.DiskThresholdPercent
 		}
 		if body.Cleanup.CheckInterval != nil {
 			if _, err := time.ParseDuration(*body.Cleanup.CheckInterval); err != nil {
-				writeError(w, http.StatusBadRequest, "check_interval must be a valid duration (e.g., \"30m\", \"1h\")")
+				writeError(w, http.StatusBadRequest, "检查间隔必须为有效的时间段（如 \"30m\"、\"1h\"）")
 				return
 			}
 			h.config.Cleanup.CheckInterval = *body.Cleanup.CheckInterval
@@ -1612,7 +1612,7 @@ func (h *Handler) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleGetMergeSettings(w http.ResponseWriter, r *http.Request) {
 	if h.config == nil {
-		writeError(w, http.StatusInternalServerError, "config not available")
+		writeError(w, http.StatusInternalServerError, "配置不可用")
 		return
 	}
 
@@ -1628,7 +1628,7 @@ func (h *Handler) handleGetMergeSettings(w http.ResponseWriter, r *http.Request)
 
 func (h *Handler) handleUpdateMergeSettings(w http.ResponseWriter, r *http.Request) {
 	if h.config == nil {
-		writeError(w, http.StatusInternalServerError, "config not available")
+		writeError(w, http.StatusInternalServerError, "配置不可用")
 		return
 	}
 
@@ -1642,7 +1642,7 @@ func (h *Handler) handleUpdateMergeSettings(w http.ResponseWriter, r *http.Reque
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, "无效的请求体")
 		return
 	}
 
@@ -1651,35 +1651,35 @@ func (h *Handler) handleUpdateMergeSettings(w http.ResponseWriter, r *http.Reque
 	}
 	if body.CheckInterval != nil {
 		if _, err := time.ParseDuration(*body.CheckInterval); err != nil {
-			writeError(w, http.StatusBadRequest, "check_interval must be a valid duration (e.g., \"30m\", \"1h\")")
+			writeError(w, http.StatusBadRequest, "检查间隔必须为有效的时间段（如 \"30m\"、\"1h\"）")
 			return
 		}
 		h.config.Merge.CheckInterval = *body.CheckInterval
 	}
 	if body.WindowSize != nil {
 		if _, err := time.ParseDuration(*body.WindowSize); err != nil {
-			writeError(w, http.StatusBadRequest, "window_size must be a valid duration (e.g., \"24h\", \"48h\")")
+			writeError(w, http.StatusBadRequest, "时间窗口必须为有效的时间段（如 \"24h\"、\"48h\"）")
 			return
 		}
 		h.config.Merge.WindowSize = *body.WindowSize
 	}
 	if body.BatchLimit != nil {
 		if *body.BatchLimit < 1 {
-			writeError(w, http.StatusBadRequest, "batch_limit must be >= 1")
+			writeError(w, http.StatusBadRequest, "批处理限制必须 >= 1")
 			return
 		}
 		h.config.Merge.BatchLimit = *body.BatchLimit
 	}
 	if body.MinSegmentAge != nil {
 		if _, err := time.ParseDuration(*body.MinSegmentAge); err != nil {
-			writeError(w, http.StatusBadRequest, "min_segment_age must be a valid duration (e.g., \"1h\", \"6h\")")
+			writeError(w, http.StatusBadRequest, "分段最小时长必须为有效的时间段（如 \"1h\"、\"6h\"）")
 			return
 		}
 		h.config.Merge.MinSegmentAge = *body.MinSegmentAge
 	}
 	if body.MinSegmentsToMerge != nil {
 		if *body.MinSegmentsToMerge < 1 {
-			writeError(w, http.StatusBadRequest, "min_segments_to_merge must be >= 1")
+			writeError(w, http.StatusBadRequest, "最小合并分段数必须 >= 1")
 			return
 		}
 		h.config.Merge.MinSegmentsToMerge = *body.MinSegmentsToMerge
@@ -1695,13 +1695,13 @@ func (h *Handler) handleUpdateMergeSettings(w http.ResponseWriter, r *http.Reque
 
 func (h *Handler) handleUpdateCameraMergeConfig(w http.ResponseWriter, r *http.Request) {
 	if h.db == nil {
-		writeError(w, http.StatusInternalServerError, "database not available")
+		writeError(w, http.StatusInternalServerError, "数据库不可用")
 		return
 	}
 
 	cameraID := chi.URLParam(r, "id")
 	if cameraID == "" {
-		writeError(w, http.StatusBadRequest, "camera ID is required")
+		writeError(w, http.StatusBadRequest, "摄像头ID必填")
 		return
 	}
 
@@ -1715,7 +1715,7 @@ func (h *Handler) handleUpdateCameraMergeConfig(w http.ResponseWriter, r *http.R
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		writeError(w, http.StatusBadRequest, "无效的请求体")
 		return
 	}
 
@@ -1723,17 +1723,17 @@ func (h *Handler) handleUpdateCameraMergeConfig(w http.ResponseWriter, r *http.R
 	for _, d := range []*string{body.CheckInterval, body.WindowSize, body.MinSegmentAge} {
 		if d != nil {
 			if _, err := time.ParseDuration(*d); err != nil {
-				writeError(w, http.StatusBadRequest, "duration fields must be valid (e.g., \"30m\", \"1h\")")
+				writeError(w, http.StatusBadRequest, "持续时间字段必须为有效的时间段（如 \"30m\"、\"1h\"）")
 				return
 			}
 		}
 	}
 	if body.BatchLimit != nil && *body.BatchLimit < 1 {
-		writeError(w, http.StatusBadRequest, "batch_limit must be >= 1")
+		writeError(w, http.StatusBadRequest, "批处理限制必须 >= 1")
 		return
 	}
 	if body.MinSegmentsToMerge != nil && *body.MinSegmentsToMerge < 1 {
-		writeError(w, http.StatusBadRequest, "min_segments_to_merge must be >= 1")
+		writeError(w, http.StatusBadRequest, "最小合并分段数必须 >= 1")
 		return
 	}
 
@@ -1741,7 +1741,7 @@ func (h *Handler) handleUpdateCameraMergeConfig(w http.ResponseWriter, r *http.R
 			body.Enabled, body.CheckInterval, body.WindowSize, body.MinSegmentAge,
 			body.BatchLimit, body.MinSegmentsToMerge); err != nil {
 		logger.Warn("failed to update camera merge config", "error", err, "camera_id", cameraID)
-		writeError(w, http.StatusInternalServerError, "failed to update merge config")
+		writeError(w, http.StatusInternalServerError, "更新合并配置失败")
 		return
 	}
 
@@ -1750,13 +1750,13 @@ func (h *Handler) handleUpdateCameraMergeConfig(w http.ResponseWriter, r *http.R
 
 func (h *Handler) handleDeleteCameraMergeConfig(w http.ResponseWriter, r *http.Request) {
 	if h.db == nil {
-		writeError(w, http.StatusInternalServerError, "database not available")
+		writeError(w, http.StatusInternalServerError, "数据库不可用")
 		return
 	}
 
 	cameraID := chi.URLParam(r, "id")
 	if cameraID == "" {
-		writeError(w, http.StatusBadRequest, "camera ID is required")
+		writeError(w, http.StatusBadRequest, "摄像头ID必填")
 		return
 	}
 
@@ -1764,7 +1764,7 @@ func (h *Handler) handleDeleteCameraMergeConfig(w http.ResponseWriter, r *http.R
 	if err := h.db.UpsertCameraMerge(r.Context(), cameraID,
 			nil, nil, nil, nil, nil, nil); err != nil {
 		logger.Warn("failed to clear camera merge config", "error", err, "camera_id", cameraID)
-		writeError(w, http.StatusInternalServerError, "failed to clear merge config")
+		writeError(w, http.StatusInternalServerError, "清除合并配置失败")
 		return
 	}
 
@@ -1808,18 +1808,18 @@ func (h *Handler) handleMergePending(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleBackup(w http.ResponseWriter, r *http.Request) {
 	if h.db == nil {
-		writeError(w, http.StatusInternalServerError, "database not available")
+		writeError(w, http.StatusInternalServerError, "数据库不可用")
 		return
 	}
 	backupDir := filepath.Join(filepath.Dir(h.configPath), "backups")
 	if err := os.MkdirAll(backupDir, 0755); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to create backup directory")
+		writeError(w, http.StatusInternalServerError, "创建备份目录失败")
 		return
 	}
 	filename := fmt.Sprintf("nvr-backup-%s.db", time.Now().Format("20060102-150405"))
 	destPath := filepath.Join(backupDir, filename)
 	if err := h.db.Backup(r.Context(), destPath); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to create backup")
+		writeError(w, http.StatusInternalServerError, "创建备份失败")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "created", "file": filename})

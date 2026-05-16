@@ -5,7 +5,6 @@
   import { getEffectiveTheme } from '$lib/preferences';
   import LanguageSwitcher from './LanguageSwitcher.svelte';
   import ThemeToggle from './ThemeToggle.svelte';
-  import Toast from './Toast.svelte';
   import { ArrowLeft, Menu, LogOut } from 'lucide-svelte';
 
   // Props
@@ -135,9 +134,6 @@
     </div>
   </div>
 </header>
-
-<!-- Toast container — rendered at top level so it's always visible -->
-<Toast />
 
 <style>
   .navbar {
