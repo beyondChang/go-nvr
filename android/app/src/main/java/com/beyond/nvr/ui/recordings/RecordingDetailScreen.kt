@@ -290,82 +290,71 @@ fun RecordingDetailScreen(
                                         Card(
                                             onClick = { viewModel.selectRecording(rec.id) },
                                             modifier = Modifier.fillMaxWidth(),
-                                            shape = RoundedCornerShape(10.dp),
+                                            shape = RoundedCornerShape(12.dp),
                                             colors = CardDefaults.cardColors(
                                                 containerColor = if (isCurrent)
                                                     MaterialTheme.colorScheme.primaryContainer
                                                 else
-                                                    MaterialTheme.colorScheme.surfaceVariant,
+                                                    MaterialTheme.colorScheme.surface,
                                             ),
                                             border = if (isCurrent) {
-                                                BorderStroke(1.2.dp, MaterialTheme.colorScheme.primary)
-                                            } else null,
+                                                BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
+                                            } else {
+                                                BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
+                                            },
                                             elevation = CardDefaults.cardElevation(
                                                 defaultElevation = if (isCurrent) 4.dp else 1.dp,
                                             ),
                                         ) {
-                                            Column(
-                                                modifier = Modifier.padding(10.dp),
-                                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                                            Row(
+                                                modifier = Modifier
+                                                    .height(IntrinsicSize.Min)
+                                                    .defaultMinSize(minHeight = 64.dp),
                                             ) {
-                                                // Start time row
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Icon(
-                                                        Icons.Default.PlayArrow,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(12.dp),
-                                                        tint = if (isCurrent)
-                                                            MaterialTheme.colorScheme.primary
-                                                        else
-                                                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                                    )
-                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                // Left accent bar
+                                                Box(
+                                                    modifier = Modifier
+                                                        .width(4.dp)
+                                                        .fillMaxHeight()
+                                                        .background(
+                                                            if (isCurrent)
+                                                                MaterialTheme.colorScheme.primary
+                                                            else
+                                                                MaterialTheme.colorScheme.outlineVariant,
+                                                        ),
+                                                )
+                                                // Content
+                                                Column(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .padding(12.dp),
+                                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                                ) {
+                                                    // Time range: "14:30:00 → 14:35:00"
                                                     Text(
-                                                        text = startTime,
+                                                        text = "$startTime → $endTime",
                                                         style = MaterialTheme.typography.bodySmall,
                                                         fontWeight = FontWeight.SemiBold,
                                                         color = if (isCurrent)
                                                             MaterialTheme.colorScheme.onPrimaryContainer
                                                         else
-                                                            MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            MaterialTheme.colorScheme.onSurface,
                                                     )
-                                                }
-                                                // End time row
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Icon(
-                                                        Icons.Default.Stop,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(12.dp),
-                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                                    )
-                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                    Text(
-                                                        text = endTime,
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        fontWeight = FontWeight.Normal,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                                    )
-                                                }
-                                                // Duration badge
-                                                Surface(
-                                                    shape = RoundedCornerShape(4.dp),
-                                                    color = if (isCurrent)
-                                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                                                    else
-                                                        MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
-                                                ) {
-                                                    Text(
-                                                        text = FormatUtils.formatDurationShort(rec.duration),
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        modifier = Modifier
-                                                            .padding(horizontal = 5.dp, vertical = 1.dp)
-                                                            .fillMaxWidth(),
-                                                        textAlign = TextAlign.Center,
-                                                        color = if (isCurrent)
-                                                            MaterialTheme.colorScheme.primary
-                                                        else
-                                                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                                    )
+                                                    // Duration
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Icon(
+                                                            Icons.Default.Schedule,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(12.dp),
+                                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                                        )
+                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                        Text(
+                                                            text = FormatUtils.formatDurationShort(rec.duration),
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
