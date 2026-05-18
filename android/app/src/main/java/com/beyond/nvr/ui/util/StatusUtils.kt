@@ -18,7 +18,7 @@ object StatusUtils {
                 bg = Color.Gray.copy(alpha = 0.2f),
                 text = "未知",
             )
-            status.contains("connect", ignoreCase = true) || status.contains("online", ignoreCase = true) -> StatusColors(
+            status.contains("recording", ignoreCase = true) || status.contains("connect", ignoreCase = true) || status.contains("online", ignoreCase = true) -> StatusColors(
                 dot = Color(0xFF4CAF50),
                 bg = Color(0xFF4CAF50).copy(alpha = 0.15f),
                 text = "在线",
