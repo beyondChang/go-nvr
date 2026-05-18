@@ -251,9 +251,9 @@ private fun DashboardHeader(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = if (totalCameras > 0 && onlineCount > 0)
-                        "$onlineCount 个摄像头在线"
+                        "$onlineCount 个设备在线"
                     else
-                        "无摄像头在线",
+                        "无设备在线",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Medium,
                     color = Color.White.copy(alpha = 0.9f),
@@ -318,7 +318,7 @@ private fun DashboardHeader(
         ) {
             StatMiniCard(
                 icon = Icons.Default.Videocam,
-                label = "摄像头",
+                label = "设备",
                 value = "$totalCameras",
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.weight(1f),
@@ -396,7 +396,7 @@ private fun StatMiniCard(
 }
 
 // ════════════════════════════════════════════════════════════════
-//  CameraBigCard — 渐变摄像头卡片
+//  CameraBigCard — 渐变设备卡片
 // ════════════════════════════════════════════════════════════════
 @Composable
 private fun CameraBigCard(
@@ -435,6 +435,7 @@ private fun CameraBigCard(
                         end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
                     ),
                 ),
+            contentAlignment = Alignment.Center
         ) {
             // Decorative circles
             Box(
@@ -466,14 +467,14 @@ private fun CameraBigCard(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(Color.White.copy(alpha = 0.15f)),
+                        .background(Color.White.copy(alpha = 0.25f)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
                         Icons.Default.Videocam,
                         contentDescription = null,
                         modifier = Modifier.size(24.dp),
-                        tint = Color.White.copy(alpha = 0.9f),
+                        tint = textColor.copy(alpha = 0.9f),
                     )
                 }
 
@@ -482,16 +483,16 @@ private fun CameraBigCard(
                 // Center: text
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "摄像头",
+                        text = "设备",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = textColor,
                     )
                     Spacer(modifier = Modifier.height(1.dp))
                     Text(
-                        text = "查看和管理所有摄像头",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.7f),
+                        text = "查看和管理所有设备",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = textColor.copy(alpha = 0.85f),
                     )
                     if (totalCameras > 0) {
                         Spacer(modifier = Modifier.height(6.dp))
@@ -506,7 +507,7 @@ private fun CameraBigCard(
                             Text(
                                 text = "$onlineCount / $totalCameras 在线",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.8f),
+                                color = Color.White.copy(alpha = 0.9f),
                             )
                         }
                     }
@@ -620,7 +621,7 @@ private fun RecordingsBigCard(
                     Text(
                         text = "浏览和回放录像",
                         style = MaterialTheme.typography.bodySmall,
-                        color = textColor.copy(alpha = 0.7f),
+                        color = textColor.copy(alpha = 0.8f),
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -636,7 +637,7 @@ private fun RecordingsBigCard(
                             Text(
                                 text = "共 $recordingCount 个录像",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = textColor.copy(alpha = 0.7f),
+                                color = textColor.copy(alpha = 0.85f),
                             )
                         }
                     }
