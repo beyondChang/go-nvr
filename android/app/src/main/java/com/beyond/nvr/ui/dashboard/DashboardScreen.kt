@@ -507,7 +507,7 @@ private fun CameraBigCard(
                             Text(
                                 text = "$onlineCount / $totalCameras 在线",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.9f),
+                                color = textColor.copy(alpha = 0.9f),
                             )
                         }
                     }
