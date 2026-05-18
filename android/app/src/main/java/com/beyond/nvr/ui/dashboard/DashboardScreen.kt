@@ -172,13 +172,13 @@ private fun DashboardHeader(
     viewModel: DashboardViewModel,
     modifier: Modifier = Modifier,
 ) {
-    // 小清新三色渐变（薄荷绿 → 天空蓝 → 淡紫）
+    // 小清新三色渐变（更柔和的薄荷绿 → 天空蓝 → 淡紫）
     val headerGradient = remember {
         Brush.verticalGradient(
             colors = listOf(
-                Color(0xFF6EE7B7),  // 薄荷绿
-                Color(0xFF38BDF8),  // 天空蓝
-                Color(0xFF818CF8),  // 淡紫
+                Color(0xFFA7F3D0),  // 柔薄荷绿
+                Color(0xFF7DD3FC),  // 柔天空蓝
+                Color(0xFFA5B4FC),  // 柔淡紫
             )
         )
     }
