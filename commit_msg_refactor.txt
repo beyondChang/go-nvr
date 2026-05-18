@@ -1,0 +1,17 @@
+refactor: 按参考项目架构重写视频播放器
+
+- 新增 NvrVideoPlayer（继承 StandardGSYVideoPlayer）
+  - 使用最小布局 layout_player.xml（无默认 GSY 控件）
+  - 禁用默认触摸处理（touchSurfaceMove/showWifiDialog）
+  - 添加 NvrPlayerListener 回调状态/位置变化
+  - 公开 clickStartIcon() 供 Compose 控制栏使用
+- 新增 NvrPlayerListener 接口
+- 重写 VideoPlayerCard：
+  - 用 listener 回调取代轮询跟踪播放状态
+  - 使用 GSY 实际状态常检测播放/缓冲
+  - 移除手动 isPlaying 布尔值，依赖 GSY 状态机
+  - 移除 toggle-icon 动画（简化）
+  - 添加 buffering indicator
+- 新增 res/layout/layout_player.xml（仅 surface_container）
+
+Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>

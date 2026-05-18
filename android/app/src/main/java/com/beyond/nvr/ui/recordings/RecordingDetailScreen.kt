@@ -1,10 +1,7 @@
 package com.beyond.nvr.ui.recordings
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -31,7 +28,12 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.beyond.nvr.data.api.CredentialCache
 import com.beyond.nvr.data.repository.PreferencesRepository
-import com.shuyu.gsyvideoplayer.video.StandardGSYVideoPlayer
+import com.shuyu.gsyvideoplayer.video.base.GSYVideoView.CURRENT_STATE_PLAYING
+import com.shuyu.gsyvideoplayer.video.base.GSYVideoView.CURRENT_STATE_PAUSE
+import com.shuyu.gsyvideoplayer.video.base.GSYVideoView.CURRENT_STATE_ERROR
+import com.shuyu.gsyvideoplayer.video.base.GSYVideoView.CURRENT_STATE_AUTO_COMPLETE
+import com.shuyu.gsyvideoplayer.video.base.GSYVideoView.CURRENT_STATE_PREPAREING
+import com.shuyu.gsyvideoplayer.video.base.GSYVideoView.CURRENT_STATE_PLAYING_BUFFERING_START
 import kotlinx.coroutines.delay
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
@@ -61,8 +63,8 @@ fun RecordingDetailScreen(
 
     val isPlayable = uiState.recording?.format in listOf("h264", "h265")
 
-    // GSYVideoPlayer instance — held in state so DisposableEffect can release it
-    val playerRef = remember { mutableStateOf<StandardGSYVideoPlayer?>(null) }
+    // NvrVideoPlayer instance — held in state so DisposableEffect can release it
+    val playerRef = remember { mutableStateOf<NvrVideoPlayer?>(null) }
 
     // Update player source when recording is ready
     LaunchedEffect(isPlayable, uiState.recording) {
@@ -453,47 +455,45 @@ private fun formatPlayerTime(ms: Long): String {
 
 /**
  * GSYVideoPlayer card with custom Compose control overlay.
- * Extracted to a separate composable so [AnimatedVisibility] resolves
- * to the top-level function rather than [ColumnScope.AnimatedVisibility].
+ *
+ * Uses [NvrVideoPlayer] (minimal layout + listener pattern) instead of polling,
+ * matching the architecture from the reference video-player project.
  */
 @Composable
 private fun VideoPlayerCard(
     modifier: Modifier,
-    playerRef: MutableState<StandardGSYVideoPlayer?>,
+    playerRef: MutableState<NvrVideoPlayer?>,
     downloadUrl: String,
-    onFirstReady: (url: String, player: StandardGSYVideoPlayer) -> Unit,
+    onFirstReady: (url: String, player: NvrVideoPlayer) -> Unit,
 ) {
-    var isPlaying by remember { mutableStateOf(true) }
-    var currentPosition by remember { mutableStateOf(0L) }
-    var duration by remember { mutableStateOf(0L) }
+    // ── state tracked via GSY listener callbacks ──
+    var currentState by remember { mutableIntStateOf(-1) }
+    var currentPosition by remember { mutableLongStateOf(0L) }
+    var totalDuration by remember { mutableLongStateOf(0L) }
     var showControls by remember { mutableStateOf(false) }
-    var toggleIconVisible by remember { mutableStateOf(false) }
 
-    // Timer — poll player position while playing
-    LaunchedEffect(isPlaying) {
-        if (isPlaying) {
-            while (true) {
-                delay(250)
-                val p = playerRef.value ?: continue
-                currentPosition = p.currentPositionWhenPlaying
-                duration = p.duration
+    val listener = remember {
+        object : NvrPlayerListener {
+            override fun onPlayerStateChanged(state: Int) {
+                currentState = state
+            }
+
+            override fun onPlayerPositionChanged(position: Long, total: Long) {
+                currentPosition = position
+                totalDuration = total
             }
         }
     }
+
+    val isPlaying = currentState == CURRENT_STATE_PLAYING
+    val isBuffering = currentState == CURRENT_STATE_PREPAREING
+        || currentState == CURRENT_STATE_PLAYING_BUFFERING_START
 
     // Auto-hide controls after 4s
     LaunchedEffect(showControls) {
         if (showControls) {
             delay(4000)
             showControls = false
-        }
-    }
-
-    // Briefly show center toggle icon
-    LaunchedEffect(toggleIconVisible) {
-        if (toggleIconVisible) {
-            delay(1000)
-            toggleIconVisible = false
         }
     }
 
@@ -511,27 +511,26 @@ private fun VideoPlayerCard(
                 .aspectRatio(16f / 9f)
                 .clip(RoundedCornerShape(12.dp)),
         ) {
-            // GSYVideoPlayer with default controls hidden
+            // GSYVideoPlayer surface (custom NvrVideoPlayer — no default controls)
             AndroidView(
                 factory = { ctx ->
-                    val gsy = StandardGSYVideoPlayer(ctx).apply {
-                        setIsTouchWiget(false)
+                    NvrVideoPlayer(ctx).apply {
+                        setPlayerListener(listener)
+                        playerRef.value = this
+                        onFirstReady(downloadUrl, this)
                     }
-                    playerRef.value = gsy
-                    onFirstReady(downloadUrl, gsy)
-                    gsy
                 },
                 modifier = Modifier.fillMaxSize(),
             )
 
-            // Tap zone
+            // ── Tap zone (toggle control visibility) ──
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .clickable { showControls = !showControls },
             )
 
-            // ── Gradient overlay + controls ──
+            // ── Control overlay (fade in/out) ──
             androidx.compose.animation.AnimatedVisibility(
                 visible = showControls,
                 enter = fadeIn(animationSpec = tween(300)),
@@ -551,21 +550,14 @@ private fun VideoPlayerCard(
                         )
                         .clickable(enabled = false) {},
                 ) {
-                    // Center play/pause button
+                    // ── Center play/pause button ──
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center,
                     ) {
                         FilledIconButton(
                             onClick = {
-                                val gsy = playerRef.value ?: return@FilledIconButton
-                                if (isPlaying) {
-                                    gsy.onVideoPause()
-                                } else {
-                                    gsy.onVideoResume()
-                                }
-                                isPlaying = !isPlaying
-                                toggleIconVisible = true
+                                playerRef.value?.clickStartIcon()
                             },
                             modifier = Modifier.size(56.dp),
                         ) {
@@ -578,7 +570,7 @@ private fun VideoPlayerCard(
                         }
                     }
 
-                    // Bottom bar: seek + time
+                    // ── Bottom bar: seek + time ──
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -597,11 +589,11 @@ private fun VideoPlayerCard(
                                 style = MaterialTheme.typography.labelSmall,
                             )
                             Slider(
-                                value = if (duration > 0L)
-                                    currentPosition.toFloat() / duration.toFloat()
+                                value = if (totalDuration > 0L)
+                                    currentPosition.toFloat() / totalDuration.toFloat()
                                 else 0f,
                                 onValueChange = { fraction ->
-                                    val target = (fraction * duration).toLong()
+                                    val target = (fraction * totalDuration).toLong()
                                     playerRef.value?.seekTo(target)
                                     currentPosition = target
                                 },
@@ -615,7 +607,7 @@ private fun VideoPlayerCard(
                                 ),
                             )
                             Text(
-                                text = formatPlayerTime(duration),
+                                text = formatPlayerTime(totalDuration),
                                 color = Color.White,
                                 style = MaterialTheme.typography.labelSmall,
                             )
@@ -624,33 +616,17 @@ private fun VideoPlayerCard(
                 }
             }
 
-            // ── Brief toggle icon (scale+fade, appears on play/pause) ──
-            androidx.compose.animation.AnimatedVisibility(
-                visible = toggleIconVisible,
-                enter = scaleIn(animationSpec = tween(250)) + fadeIn(animationSpec = tween(250)),
-                exit = scaleOut(animationSpec = tween(250)) + fadeOut(animationSpec = tween(250)),
-            ) {
+            // ── Buffering indicator ──
+            if (isBuffering) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .clickable(enabled = false) {},
+                    modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(50),
-                        color = Color.Black.copy(alpha = 0.6f),
-                        modifier = Modifier.size(72.dp),
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                if (isPlaying) Icons.Default.PlayArrow
-                                else Icons.Default.Pause,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(40.dp),
-                            )
-                        }
-                    }
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(36.dp),
+                        strokeWidth = 3.dp,
+                    )
                 }
             }
         }
