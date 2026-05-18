@@ -172,16 +172,19 @@ private fun DashboardHeader(
     viewModel: DashboardViewModel,
     modifier: Modifier = Modifier,
 ) {
-    // 美丽的三色渐变（深紫 → 靛蓝 → 亮紫）
+    // 小清新三色渐变（薄荷绿 → 天空蓝 → 淡紫）
     val headerGradient = remember {
         Brush.verticalGradient(
             colors = listOf(
-                Color(0xFF1E1B4B),  // 深靛蓝
-                Color(0xFF312E81),  // 靛蓝
-                Color(0xFF6366F1),  // 亮紫蓝
+                Color(0xFF6EE7B7),  // 薄荷绿
+                Color(0xFF38BDF8),  // 天空蓝
+                Color(0xFF818CF8),  // 淡紫
             )
         )
     }
+
+    // 深色文字（浅色渐变背景上用深色）
+    val headerTextColor = Color(0xFF1E293B)
 
     Column(
         modifier = modifier
@@ -220,13 +223,13 @@ private fun DashboardHeader(
                 modifier = Modifier
                     .size(52.dp)
                     .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.20f)),
+                    .background(Color(0xFF000000).copy(alpha = 0.06f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     Icons.Default.Person,
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = headerTextColor,
                     modifier = Modifier.size(28.dp),
                 )
             }
@@ -256,7 +259,7 @@ private fun DashboardHeader(
                         "无设备在线",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White.copy(alpha = 0.9f),
+                    color = headerTextColor.copy(alpha = 0.85f),
                 )
             }
 
@@ -264,7 +267,7 @@ private fun DashboardHeader(
                 Icon(
                     Icons.Default.Refresh,
                     contentDescription = "刷新",
-                    tint = Color.White.copy(alpha = 0.85f),
+                    tint = headerTextColor.copy(alpha = 0.7f),
                 )
             }
 
@@ -273,7 +276,7 @@ private fun DashboardHeader(
                     Icon(
                         Icons.Default.MoreVert,
                         contentDescription = "菜单",
-                        tint = Color.White.copy(alpha = 0.85f),
+                        tint = headerTextColor.copy(alpha = 0.7f),
                     )
                 }
                 DropdownMenu(
@@ -495,7 +498,7 @@ private fun CameraBigCard(
                         color = textColor.copy(alpha = 0.85f),
                     )
                     if (totalCameras > 0) {
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(15.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
@@ -517,7 +520,7 @@ private fun CameraBigCard(
                 Icon(
                     Icons.Default.ArrowForward,
                     contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.6f),
+                    tint = Color.Black.copy(alpha = 0.6f),
                     modifier = Modifier.size(20.dp),
                 )
             }
@@ -565,6 +568,7 @@ private fun RecordingsBigCard(
                         end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
                     ),
                 ),
+            contentAlignment = Alignment.Center
         ) {
             // Decorative circles
             Box(
@@ -603,7 +607,7 @@ private fun RecordingsBigCard(
                         Icons.Default.PlayCircle,
                         contentDescription = null,
                         modifier = Modifier.size(24.dp),
-                        tint = Color.White.copy(alpha = 0.9f),
+                        tint = Color.Black.copy(alpha = 0.9f),
                     )
                 }
 
@@ -624,7 +628,7 @@ private fun RecordingsBigCard(
                         color = textColor.copy(alpha = 0.8f),
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(15.dp))
                     if (recordingCount > 0) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
