@@ -1,6 +1,0 @@
-feat: player 点击切换控制栏 + 进度条右侧全屏图标
-
-1. 点击控制栏/空区域切换显隐，子控件（播放按钮、进度条）不受干扰
-2. 底部 Row 右侧添加 Fullscreen 图标按钮
-
-Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>
