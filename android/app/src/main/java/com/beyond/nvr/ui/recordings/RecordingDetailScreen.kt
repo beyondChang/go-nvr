@@ -1,5 +1,6 @@
 package com.beyond.nvr.ui.recordings
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
@@ -619,33 +620,39 @@ private fun VideoPlayerCard(
                 modifier = Modifier.fillMaxSize(),
             )
 
-            // ── Tap zone (toggle control visibility) ──
+            // ── Control overlay ──
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable { showControls = !showControls },
-            )
-
-            // ── Control overlay (fade in/out) ──
-            androidx.compose.animation.AnimatedVisibility(
-                visible = showControls,
-                enter = fadeIn(animationSpec = tween(300)),
-                exit = fadeOut(animationSpec = tween(300)),
+                modifier = Modifier.fillMaxSize(),
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                Pair(0f, Color.Black),
-                                Pair(.2f, Color.Transparent),
-                                Pair(.7f, Color.Transparent),
-                                Pair(1f, Color.Black),
-                            ),
-                            alpha = 0.8f,
-                        )
-                        .clickable(enabled = false) {},
+                // When controls hidden → transparent tap zone to show them
+                if (!showControls) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable { showControls = true },
+                    )
+                }
+
+                // Controls content (fade in/out)
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = showControls,
+                    enter = fadeIn(animationSpec = tween(300)),
+                    exit = fadeOut(animationSpec = tween(300)),
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    Pair(0f, Color.Black),
+                                    Pair(.2f, Color.Transparent),
+                                    Pair(.7f, Color.Transparent),
+                                    Pair(1f, Color.Black),
+                                ),
+                                alpha = 0.8f,
+                            )
+                            .clickable { showControls = false },
+                    ) {
                     // ── Center play/pause button ──
                     Box(
                         modifier = Modifier.fillMaxSize(),
@@ -700,9 +707,21 @@ private fun VideoPlayerCard(
                                 color = Color.White,
                                 style = MaterialTheme.typography.labelSmall,
                             )
+                            IconButton(
+                                onClick = { /* TODO: toggle fullscreen */ },
+                                modifier = Modifier.size(28.dp),
+                            ) {
+                                Icon(
+                                    Icons.Default.Fullscreen,
+                                    contentDescription = "全屏",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp),
+                                )
+                            }
                         }
                     }
                 }
+            }
             }
 
             // ── Buffering indicator ──
