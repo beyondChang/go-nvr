@@ -57,10 +57,9 @@ func NewAuthMiddleware(username, passwordHash, plaintextPassword string) (func(h
 			}
 
 			if strings.TrimSpace(effectiveHash) == "" {
-				// No password configured — allow access (first-time setup mode)
-				// User can set password later via Web UI settings page
-				next.ServeHTTP(w, r)
-				return
+			 // No password configured — bypass auth (first-time setup mode)
+			 next.ServeHTTP(w, r)
+			 return
 			}
 
 			user, pass, ok := r.BasicAuth()

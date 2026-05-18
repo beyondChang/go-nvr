@@ -132,6 +132,7 @@ export interface RecordingListResponse {
 
 export interface LoginResponse {
   status: string;
+  force_password_change?: boolean;
 }
 
 export interface ApiError {
@@ -294,7 +295,17 @@ export function logout(): void {
   window.location.hash = '#/login';
 }
 
-// Recordings endpoints
+// Change password
+export async function changePassword(oldPassword: string, newPassword: string): Promise<void> {
+  const response = await apiRequest('/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: 'Failed to change password' }));
+    throw new Error((errorData as ApiError).error || 'Failed to change password');
+  }
+}
 export async function listRecordings(params: {
   camera_id?: string;
   format?: string;

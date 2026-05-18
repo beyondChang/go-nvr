@@ -139,6 +139,7 @@ func (h *Handler) Routes() http.Handler {
 		r.Get("/api/stats/trends", h.handleStatsTrends)
 		r.Get("/api/settings", h.handleGetSettings)
 		r.Put("/api/settings", h.handleUpdateSettings)
+		r.Post("/api/auth/change-password", h.handleChangePassword)
 		r.Get("/api/settings/merge", h.handleGetMergeSettings)
 		r.Put("/api/settings/merge", h.handleUpdateMergeSettings)
 		r.Post("/api/backup", h.handleBackup)
@@ -298,7 +299,14 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	select {
 	case status := <-done:
 		if status == http.StatusOK {
-			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+			forcePasswordChange := false
+			if h.config != nil {
+				forcePasswordChange = h.config.Auth.ForcePasswordChange
+			}
+			writeJSON(w, http.StatusOK, map[string]any{
+				"status":               "ok",
+				"force_password_change": forcePasswordChange,
+			})
 		}
 	default:
 		w.Header().Set("Content-Type", "application/json")
@@ -308,7 +316,56 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 
-// --- Recording endpoints ---
+// --- Authentication (requires auth) ---
+
+func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		OldPassword string `json:"old_password"`
+		NewPassword string `json:"new_password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "无效的请求体")
+		return
+	}
+
+	if body.OldPassword == "" || body.NewPassword == "" {
+		writeError(w, http.StatusBadRequest, "旧密码和新密码不能为空")
+		return
+	}
+
+	if len(body.NewPassword) < 6 {
+		writeError(w, http.StatusBadRequest, "新密码至少需要 6 个字符")
+		return
+	}
+
+	if h.config.Auth.PasswordHash == "" {
+		writeError(w, http.StatusForbidden, "未设置密码，无法修改")
+		return
+	}
+
+	if !middleware.CheckPassword(body.OldPassword, h.config.Auth.PasswordHash) {
+		writeError(w, http.StatusForbidden, "旧密码错误")
+		return
+	}
+
+	hash, err := middleware.HashPassword(body.NewPassword)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "密码加密失败")
+		return
+	}
+
+	// Update config
+	h.config.Auth.PasswordHash = hash
+	h.config.Auth.Password = ""
+	h.config.Auth.ForcePasswordChange = false
+
+	// Persist to disk
+	if err := config.Save(h.configPath, h.config); err != nil {
+		logger.Warn("failed to save config after password change", "error", err)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
 
 func (h *Handler) handleListRecordings(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -640,7 +697,7 @@ func cameraRowForAPI(row *storage.CameraRow) {
 func (h *Handler) handleListCameras(w http.ResponseWriter, r *http.Request) {
 	cameras, err := h.db.ListCameras(r.Context())
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "获取摄像头列表失败")
+		writeError(w, http.StatusInternalServerError, "获取设备列表失败")
 		return
 	}
 	if cameras == nil {
@@ -691,7 +748,7 @@ func (h *Handler) handleStats(w http.ResponseWriter, r *http.Request) {
 
 	cameras, err := h.db.ListCameras(ctx)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "统计摄像头数量失败")
+		writeError(w, http.StatusInternalServerError, "统计设备数量失败")
 		return
 	}
 
@@ -774,7 +831,7 @@ func (h *Handler) handleCreateCamera(w http.ResponseWriter, r *http.Request) {
 			endpoint = body.URL
 		}
 		if endpoint == "" {
-			writeError(w, http.StatusBadRequest, "ONVIF摄像头需要提供url或onvif_endpoint")
+			writeError(w, http.StatusBadRequest, "ONVIF设备需要提供url或onvif_endpoint")
 			return
 		}
 		body.ONVIFEndpoint = endpoint
@@ -784,7 +841,7 @@ func (h *Handler) handleCreateCamera(w http.ResponseWriter, r *http.Request) {
 			existingCams, _ := h.db.ListCameras(r.Context())
 			for _, ec := range existingCams {
 				if ec.Protocol == "onvif" && ec.ONVIFEndpoint == body.ONVIFEndpoint {
-					writeError(w, http.StatusConflict, "该ONVIF端点已被其他摄像头使用")
+					writeError(w, http.StatusConflict, "该ONVIF端点已被其他设备使用")
 					return
 				}
 			}
@@ -835,12 +892,12 @@ func (h *Handler) handleCreateCamera(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.camMgr == nil {
-		writeError(w, http.StatusInternalServerError, "摄像头管理器不可用")
+		writeError(w, http.StatusInternalServerError, "设备管理器不可用")
 		return
 	}
 	id, err := h.camMgr.AddCamera(r.Context(), cam)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("添加摄像头失败: %v", err))
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("添加设备失败: %v", err))
 		return
 	}
 	// Persist DB-only metadata fields
@@ -872,11 +929,11 @@ func (h *Handler) handleGetCamera(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	row, err := h.db.GetCamera(r.Context(), id)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "获取摄像头失败")
+		writeError(w, http.StatusInternalServerError, "获取设备失败")
 		return
 	}
 	if row == nil {
-		writeError(w, http.StatusNotFound, "摄像头未找到")
+		writeError(w, http.StatusNotFound, "设备未找到")
 		return
 	}
 	// Inject recorder status
@@ -894,7 +951,7 @@ func (h *Handler) handleGetCamera(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleUpdateCamera(w http.ResponseWriter, r *http.Request) {
 	if h.camMgr == nil {
-		writeError(w, http.StatusInternalServerError, "摄像头管理器不可用")
+		writeError(w, http.StatusInternalServerError, "设备管理器不可用")
 		return
 	}
 	id := chi.URLParam(r, "id")
@@ -965,16 +1022,16 @@ func (h *Handler) handleUpdateCamera(w http.ResponseWriter, r *http.Request) {
 	_, err := h.camMgr.UpdateCamera(r.Context(), id, updates)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			writeError(w, http.StatusNotFound, "摄像头未找到")
+			writeError(w, http.StatusNotFound, "设备未找到")
 			return
 		}
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("更新摄像头失败: %v", err))
+		writeError(w, http.StatusInternalServerError, fmt.Sprintf("更新设备失败: %v", err))
 		return
 	}
 	// Return updated CameraRow with status
 	row, err := h.db.GetCamera(r.Context(), id)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "获取摄像头失败")
+		writeError(w, http.StatusInternalServerError, "获取设备失败")
 		return
 	}
 	if row != nil {
@@ -1009,7 +1066,7 @@ func (h *Handler) handleDeleteCamera(w http.ResponseWriter, r *http.Request) {
 	// Always delete from DB to handle both "camera in config" and "camera only in DB" cases.
 	dbErr := h.db.DeleteCamera(ctx, id)
 	if !removedFromConfig && dbErr != nil {
-		writeError(w, http.StatusNotFound, "摄像头未找到")
+		writeError(w, http.StatusNotFound, "设备未找到")
 		return
 	}
 	if dbErr != nil {
@@ -1024,7 +1081,7 @@ func (h *Handler) handleDeleteCamera(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleONVIFCameraProfiles(w http.ResponseWriter, r *http.Request) {
 	cameraID := chi.URLParam(r, "id")
 	if cameraID == "" {
-		writeError(w, http.StatusBadRequest, "摄像头ID必填")
+		writeError(w, http.StatusBadRequest, "设备ID必填")
 		return
 	}
 
@@ -1095,17 +1152,17 @@ func (h *Handler) handleONVIFDeviceDetail(w http.ResponseWriter, r *http.Request
 
 func (h *Handler) requireONVIF(w http.ResponseWriter, r *http.Request) bool {
 	if h.db == nil {
-		writeError(w, http.StatusNotFound, "摄像头未找到")
+		writeError(w, http.StatusNotFound, "设备未找到")
 		return false
 	}
 	cameraID := chi.URLParam(r, "id")
 	camera, err := h.db.GetCamera(r.Context(), cameraID)
 	if err != nil || camera == nil {
-		writeError(w, http.StatusNotFound, "摄像头未找到")
+		writeError(w, http.StatusNotFound, "设备未找到")
 		return false
 	}
 	if camera.Protocol != "onvif" {
-		writeError(w, http.StatusBadRequest, "PTZ控制仅适用于ONVIF摄像头")
+		writeError(w, http.StatusBadRequest, "PTZ控制仅适用于ONVIF设备")
 		return false
 	}
 	return true
@@ -1133,7 +1190,7 @@ func (h *Handler) handlePTZMove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.camMgr == nil {
-		writeError(w, http.StatusInternalServerError, "摄像头管理器不可用")
+		writeError(w, http.StatusInternalServerError, "设备管理器不可用")
 		return
 	}
 	ptz, err := h.camMgr.GetONVIFPTZController(r.Context(), cameraID)
@@ -1163,7 +1220,7 @@ func (h *Handler) handlePTZStop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.camMgr == nil {
-		writeError(w, http.StatusInternalServerError, "摄像头管理器不可用")
+		writeError(w, http.StatusInternalServerError, "设备管理器不可用")
 		return
 	}
 	ptz, err := h.camMgr.GetONVIFPTZController(r.Context(), cameraID)
@@ -1184,7 +1241,7 @@ func (h *Handler) handlePTZStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if h.camMgr == nil {
-		writeError(w, http.StatusInternalServerError, "摄像头管理器不可用")
+		writeError(w, http.StatusInternalServerError, "设备管理器不可用")
 		return
 	}
 	ptz, err := h.camMgr.GetONVIFPTZController(r.Context(), cameraID)
@@ -1256,7 +1313,7 @@ func (h *Handler) handleSnapshot(w http.ResponseWriter, r *http.Request) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		http.Error(w, "摄像头返回了错误", http.StatusBadGateway)
+		http.Error(w, "设备返回了错误", http.StatusBadGateway)
 		return
 	}
 
@@ -1315,7 +1372,7 @@ func TestHandler(db *storage.DB, store *storage.Manager) *Handler {
 // TestHandlerWithAuth creates a Handler with real auth middleware for testing.
 func TestHandlerWithAuth(db *storage.DB, store *storage.Manager, username, passwordHash string) *Handler {
 	authMW, _ := middleware.NewAuthMiddleware(username, passwordHash, "")
-	return NewHandler(db, store, authMW, nil, nil, nil, "", nil)
+	return NewHandler(db, store, authMW, &config.Config{}, nil, nil, "", nil)
 }
 
 // --- HLS streaming endpoints ---
@@ -1331,17 +1388,17 @@ func (h *Handler) handleHLSStream(w http.ResponseWriter, r *http.Request) {
 	// Get camera to check protocol
 	cam, err := h.db.GetCamera(r.Context(), id)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "获取摄像头失败")
+		writeError(w, http.StatusInternalServerError, "获取设备失败")
 		return
 	}
 	if cam == nil {
-		writeError(w, http.StatusNotFound, "摄像头未找到")
+		writeError(w, http.StatusNotFound, "设备未找到")
 		return
 	}
 
 	// Only H.264/H.265/ONVIF cameras support HLS
 	if cam.Protocol != string(model.ProtoRTSP) && cam.Protocol != string(model.ProtoONVIF) {
-		writeError(w, http.StatusBadRequest, "该摄像头协议不支持HLS直播")
+		writeError(w, http.StatusBadRequest, "该设备协议不支持HLS直播")
 		return
 	}
 
@@ -1349,7 +1406,7 @@ func (h *Handler) handleHLSStream(w http.ResponseWriter, r *http.Request) {
 	if !h.hlsMgr.IsActive(id) {
 		rec := h.camMgr.GetRecorder(id)
 		if rec == nil {
-			writeError(w, http.StatusBadRequest, "摄像头录像器未运行")
+			writeError(w, http.StatusBadRequest, "设备录像器未运行")
 			return
 		}
 
@@ -1481,7 +1538,7 @@ func (h *Handler) handleHLSStream(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		} else {
-			writeError(w, http.StatusBadRequest, "摄像头录像器不支持HLS")
+			writeError(w, http.StatusBadRequest, "设备录像器不支持HLS")
 			return
 		}
 	}
@@ -1701,7 +1758,7 @@ func (h *Handler) handleUpdateCameraMergeConfig(w http.ResponseWriter, r *http.R
 
 	cameraID := chi.URLParam(r, "id")
 	if cameraID == "" {
-		writeError(w, http.StatusBadRequest, "摄像头ID必填")
+		writeError(w, http.StatusBadRequest, "设备ID必填")
 		return
 	}
 
@@ -1756,7 +1813,7 @@ func (h *Handler) handleDeleteCameraMergeConfig(w http.ResponseWriter, r *http.R
 
 	cameraID := chi.URLParam(r, "id")
 	if cameraID == "" {
-		writeError(w, http.StatusBadRequest, "摄像头ID必填")
+		writeError(w, http.StatusBadRequest, "设备ID必填")
 		return
 	}
 

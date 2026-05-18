@@ -137,7 +137,7 @@ fun StatsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
                             StatLabel("总录像", stats.recordingCount.toString())
-                            StatLabel("摄像头", stats.cameraCount.toString())
+                            StatLabel("设备", stats.cameraCount.toString())
                         }
                     }
                 }

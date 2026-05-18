@@ -1,8 +1,0 @@
-feat: 全屏图标放大并实现全屏点击切换
-
-- 图标扩大：IconButton 28→36dp, Icon 20→24dp
-- 点击切换全屏（隐藏/显示系统状态栏+导航栏）
-- 支持 API 30+ (WindowInsetsController) 和 API 26-29 (systemUiVisibility)
-- 图标根据全屏状态切换 Fullscreen / FullscreenExit
-
-Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>

@@ -630,8 +630,8 @@ func TestGetSettings_NoConfig(t *testing.T) {
 	}
 	var body map[string]string
 	parseJSON(t, rr, &body)
-	if body["error"] != "config not available" {
-		t.Fatalf("expected 'config not available', got %s", body["error"])
+	if body["error"] != "配置不可用" {
+	 t.Fatalf("expected '配置不可用', got %s", body["error"])
 	}
 }
 
@@ -713,7 +713,7 @@ func TestUpdateSettings_InvalidRetentionDays(t *testing.T) {
 	}
 	var resp map[string]string
 	parseJSON(t, rr, &resp)
-	if resp["error"] != "retention_days must be >= 1" {
+	if resp["error"] != "保留天数必须 >= 1" {
 		t.Fatalf("expected retention_days validation error, got %s", resp["error"])
 	}
 }
@@ -752,7 +752,7 @@ func TestUpdateSettings_InvalidCheckInterval(t *testing.T) {
 	}
 	var resp map[string]string
 	parseJSON(t, rr, &resp)
-	if resp["error"] != "check_interval must be a valid duration (e.g., \"30m\", \"1h\")" {
+	if resp["error"] != "检查间隔必须为有效的时间段（如 \"30m\"、\"1h\"）" {
 		t.Fatalf("unexpected error message: %s", resp["error"])
 	}
 }
@@ -835,8 +835,8 @@ func TestListFrames_H264_Error(t *testing.T) {
 	}
 	var resp map[string]string
 	parseJSON(t, rr, &resp)
-	if resp["error"] != "not a JPEG recording" {
-		t.Fatalf("expected 'not a JPEG recording', got %s", resp["error"])
+	if resp["error"] != "不是JPEG录像" {
+		t.Fatalf("expected '不是JPEG录像', got %s", resp["error"])
 	}
 }
 
@@ -1956,8 +1956,8 @@ func TestGetMergeSettings_NoConfig(t *testing.T) {
 	}
 	var body map[string]string
 	parseJSON(t, rr, &body)
-	if body["error"] != "config not available" {
-		t.Fatalf("expected 'config not available', got %s", body["error"])
+	if body["error"] != "配置不可用" {
+		t.Fatalf("expected '配置不可用', got %s", body["error"])
 	}
 }
 
@@ -2043,7 +2043,7 @@ func TestUpdateMergeSettings_InvalidCheckInterval(t *testing.T) {
 	}
 	var resp map[string]string
 	parseJSON(t, rr, &resp)
-	if resp["error"] != "check_interval must be a valid duration (e.g., \"30m\", \"1h\")" {
+	if resp["error"] != "检查间隔必须为有效的时间段（如 \"30m\"、\"1h\"）" {
 		t.Fatalf("unexpected error: %s", resp["error"])
 	}
 }

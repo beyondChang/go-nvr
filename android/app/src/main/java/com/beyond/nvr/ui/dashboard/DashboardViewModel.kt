@@ -55,7 +55,7 @@ class DashboardViewModel(
             cameraRepository.listCameras().fold(
                 onSuccess = { cameras ->
                     val online = cameras.count {
-                        it.status == "recording" || it.status == "reconnecting"
+                        it.status == "recording"
                     }
                     val offline = cameras.size - online
                     _uiState.value = _uiState.value.copy(

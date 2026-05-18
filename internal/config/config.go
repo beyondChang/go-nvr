@@ -71,9 +71,10 @@ type MergeConfig struct {
 }
 
 type AuthConfig struct {
-Username     string `yaml:"username"`
-	PasswordHash string `yaml:"password_hash"`
-	Password     string `yaml:"password"`
+ Username            string `yaml:"username"`
+ PasswordHash        string `yaml:"password_hash"`
+ Password            string `yaml:"password"`
+ ForcePasswordChange bool   `yaml:"force_password_change"`
 }
 
 type FTPConfig struct {
@@ -168,13 +169,13 @@ func Validate(cfg *Config) error {
 	// cameras must have id and url
 	for i, c := range cfg.Cameras {
 		if strings.TrimSpace(c.ID) == "" {
-			return fmt.Errorf("摄像头[%d].id 必填", i)
+			return fmt.Errorf("设备[%d].id 必填", i)
 		}
 		if strings.TrimSpace(c.URL) == "" && c.Protocol != "onvif" {
-			return fmt.Errorf("摄像头[%d].url 必填", i)
+			return fmt.Errorf("设备[%d].url 必填", i)
 		}
 		if (c.Protocol == "onvif" || c.Protocol == string(model.ProtoONVIF)) && strings.TrimSpace(c.ONVIFEndpoint) == "" && strings.TrimSpace(c.URL) == "" {
-			return fmt.Errorf("摄像头[%d]: ONVIF摄像头需要提供 url 或 onvif_endpoint", i)
+			return fmt.Errorf("设备[%d]: ONVIF设备需要提供 url 或 onvif_endpoint", i)
 		}
 		// Auto-populate: if url is set but onvif_endpoint is empty, copy url to onvif_endpoint
 		if (c.Protocol == "onvif" || c.Protocol == string(model.ProtoONVIF)) && strings.TrimSpace(c.ONVIFEndpoint) == "" && strings.TrimSpace(c.URL) != "" {
@@ -187,13 +188,13 @@ func Validate(cfg *Config) error {
 			// Old combined format like "rtsp_h264" — parse and validate
 			parsedProto, parsedEnc, err := model.ParseLegacyProtocol(proto)
 			if err != nil {
-				return fmt.Errorf("摄像头[%d].protocol 无效: %s", i, proto)
+				return fmt.Errorf("设备[%d].protocol 无效: %s", i, proto)
 			}
 			proto = parsedProto
 			enc = parsedEnc
 		}
 		if err := model.ValidateProtocolEncoding(proto, enc); err != nil {
-			return fmt.Errorf("摄像头[%d].%w", i, err)
+			return fmt.Errorf("设备[%d].%w", i, err)
 		}
 	}
 	// port ranges

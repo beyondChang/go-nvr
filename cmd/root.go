@@ -50,15 +50,15 @@ func autoInitConfig(configPath string) *config.Config {
 	password := os.Getenv("NVR_PASSWORD")
 
 	cfg := &config.Config{
-		Server:        config.ServerConfig{Listen: ":9090"},
-		Storage:       config.StorageConfig{RootDir: dataDir, SegmentDuration: "30s"},
-		Auth:          config.AuthConfig{Username: "admin"},
-		Cameras:       []config.CameraConfig{},
-		Cleanup:       config.CleanupConfig{RetentionDays: 30, CheckInterval: "1h", DiskThresholdPercent: 95},
-		FTP:           config.FTPConfig{Port: 2121, PassivePortRange: "2122-2140"},
-		WebDAV:        config.WebDAVConfig{PathPrefix: "/dav"},
-		Observability: config.ObservabilityConfig{LogLevel: "info", LogFormat: "text"},
-		Version:       "1.0",
+	 Server:        config.ServerConfig{Listen: ":9090"},
+	 Storage:       config.StorageConfig{RootDir: dataDir, SegmentDuration: "30s"},
+	 Auth:          config.AuthConfig{Username: "admin", Password: "123456", ForcePasswordChange: true},
+	 Cameras:       []config.CameraConfig{},
+	 Cleanup:       config.CleanupConfig{RetentionDays: 30, CheckInterval: "1h", DiskThresholdPercent: 95},
+	 FTP:           config.FTPConfig{Port: 2121, PassivePortRange: "2122-2140"},
+	 WebDAV:        config.WebDAVConfig{PathPrefix: "/dav"},
+	 Observability: config.ObservabilityConfig{LogLevel: "info", LogFormat: "text"},
+	 Version:       "1.0",
 	}
 
 	if password != "" {
@@ -83,7 +83,7 @@ func autoInitConfig(configPath string) *config.Config {
 	} else {
 		slog.Info("auto-generated default config", "path", configPath, "data_dir", dataDir)
 		if password == "" {
-			slog.Warn("no password set — running in setup mode (unauthenticated access allowed). Set a password via Web UI settings or NVR_PASSWORD env var")
+			slog.Warn("using default password '123456', please change it via Web UI after first login")
 		}
 	}
 

@@ -81,7 +81,10 @@
           <span>{backLabel || t('detail.back')}</span>
         </button>
       {/if}
-      <a href="#/dashboard" class="logo">Go NVR</a>
+      <a href="#/dashboard" class="logo">
+        <img src="/logo.png" alt="Go NVR" width="32" height="32" class="logo-img" />
+        <span>Go NVR</span>
+      </a>
       
       <!-- Desktop Navigation -->
       <nav class="nav-links">
@@ -197,6 +200,9 @@
   }
 
   .logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
     font-size: 1.25rem;
     font-weight: 700;
     letter-spacing: -0.025em;
@@ -206,6 +212,12 @@
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+
+  .logo-img {
+    -webkit-background-clip: unset;
+    background-clip: unset;
+    flex-shrink: 0;
   }
 
   .nav-links {

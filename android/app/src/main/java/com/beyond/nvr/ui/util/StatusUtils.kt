@@ -18,6 +18,11 @@ object StatusUtils {
                 bg = Color.Gray.copy(alpha = 0.2f),
                 text = "未知",
             )
+            status.contains("reconnecting", ignoreCase = true) -> StatusColors(
+                dot = Color(0xFFFF9800),
+                bg = Color(0xFFFF9800).copy(alpha = 0.15f),
+                text = "重连中",
+            )
             status.contains("recording", ignoreCase = true) || status.contains("connect", ignoreCase = true) || status.contains("online", ignoreCase = true) -> StatusColors(
                 dot = Color(0xFF4CAF50),
                 bg = Color(0xFF4CAF50).copy(alpha = 0.15f),

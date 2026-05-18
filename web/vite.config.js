@@ -6,6 +6,14 @@ import path from 'path'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [svelte(), tailwindcss()],
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:9090',
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
     outDir: '../internal/ui/static',
     emptyOutDir: true,

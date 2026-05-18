@@ -50,10 +50,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.os.Build
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowInsetsController
+import android.util.Log
 import kotlinx.coroutines.delay
 import kotlin.math.max
 import org.koin.compose.koinInject
@@ -69,6 +71,36 @@ fun RecordingDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showDetailDialog by remember { mutableStateOf(false) }
+    var isFullscreen by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    fun toggleFullscreen() {
+        val activity = context as? Activity ?: return
+        isFullscreen = !isFullscreen
+        if (isFullscreen) {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                activity.window.insetsController?.hide(WindowInsets.Type.systemBars())
+                activity.window.insetsController?.systemBarsBehavior =
+                    WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            } else {
+                @Suppress("DEPRECATION")
+                activity.window.decorView.systemUiVisibility =
+                    View.SYSTEM_UI_FLAG_FULLSCREEN or
+                        View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                        View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            }
+        } else {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                activity.window.insetsController?.show(WindowInsets.Type.systemBars())
+            } else {
+                @Suppress("DEPRECATION")
+                activity.window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+            }
+        }
+    }
+
     val prefsRepo: PreferencesRepository = koinInject()
     val serverUrl by prefsRepo.serverUrl.collectAsState(initial = "")
 
@@ -100,10 +132,21 @@ fun RecordingDetailScreen(
         }
     }
 
-    // Release player when leaving screen
+    // Release player and restore system UI when leaving screen
     DisposableEffect(Unit) {
         onDispose {
             playerRef.value?.onVideoPause()
+            // Restore system bars and orientation
+            val activity = context as? Activity
+            activity?.let {
+                it.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    it.window.insetsController?.show(WindowInsets.Type.systemBars())
+                } else {
+                    @Suppress("DEPRECATION")
+                    it.window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+                }
+            }
         }
     }
 
@@ -114,30 +157,32 @@ fun RecordingDetailScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.PlayCircle,
-                            contentDescription = null,
-                            modifier = Modifier.size(22.dp),
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("录像详情")
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { showDetailDialog = true }) {
-                        Icon(Icons.Default.Info, contentDescription = "详情")
-                    }
-                },
-            )
+            if (!isFullscreen) {
+                TopAppBar(
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.PlayCircle,
+                                contentDescription = null,
+                                modifier = Modifier.size(22.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("录像详情")
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { showDetailDialog = true }) {
+                            Icon(Icons.Default.Info, contentDescription = "详情")
+                        }
+                    },
+                )
+            }
         },
     ) { padding ->
         if (uiState.isLoading) {
@@ -190,17 +235,15 @@ fun RecordingDetailScreen(
             }
         } else {
             uiState.recording?.let { recording ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    // ── Video Player (custom controls) ──
-                    if (isPlayable && serverUrl.isNotBlank()) {
+                if (isFullscreen) {
+                    // Fullscreen: only video player, no padding, no other UI
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black),
+                    ) {
                         VideoPlayerCard(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxSize(),
                             playerRef = playerRef,
                             downloadUrl = downloadUrl,
                             onFirstReady = { url, player ->
@@ -211,134 +254,164 @@ fun RecordingDetailScreen(
                                 player.setUp(url, false, headersJson)
                                 player.startPlayLogic()
                             },
+                            isFullscreen = true,
+                            onToggleFullscreen = ::toggleFullscreen,
                         )
                     }
+                } else {
+                    // Normal mode: player + episode grid
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding)
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        // ── Video Player (custom controls) ──
+                        if (isPlayable && serverUrl.isNotBlank()) {
+                            VideoPlayerCard(
+                                modifier = Modifier.fillMaxWidth(),
+                                playerRef = playerRef,
+                                downloadUrl = downloadUrl,
+                                onFirstReady = { url, player ->
+                                    val authHeader = CredentialCache.get()
+                                    val headersJson = if (authHeader != null) {
+                                        """{"Authorization":"$authHeader"}"""
+                                    } else ""
+                                    player.setUp(url, false, headersJson)
+                                    player.startPlayLogic()
+                                },
+                                isFullscreen = false,
+                                onToggleFullscreen = ::toggleFullscreen,
+                            )
+                        }
 
-                    // ── Episode Grid ──
-                    if (uiState.cameraRecordings.isNotEmpty()) {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            shape = RoundedCornerShape(12.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface,
-                            ),
-                        ) {
-                            Column(
+                        // ── Episode Grid ──
+                        if (uiState.cameraRecordings.isNotEmpty()) {
+                            Card(
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 4.dp),
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surface,
+                                ),
                             ) {
-                                // Title bar with accent line
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .width(3.dp)
-                                            .height(18.dp)
-                                            .clip(RoundedCornerShape(2.dp))
-                                            .background(MaterialTheme.colorScheme.primary),
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = "片段列表",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold,
-                                    )
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = MaterialTheme.colorScheme.secondaryContainer,
-                                    ) {
-                                        Text(
-                                            text = "${uiState.currentIndex + 1} / ${uiState.cameraRecordings.size}",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        )
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(10.dp))
-                                LazyVerticalGrid(
-                                    columns = GridCells.Adaptive(minSize = 160.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                Column(
                                     modifier = Modifier
-                                        .fillMaxWidth()
-                                        .weight(1f),
+                                        .fillMaxSize()
+                                        .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 4.dp),
                                 ) {
-                                    itemsIndexed(uiState.cameraRecordings) { index, rec ->
-                                        val isCurrent = index == uiState.currentIndex
-                                        val startTime = FormatUtils.formatTimestamp(rec.startedAt, "HH:mm:ss")
-                                        val endTime = FormatUtils.formatTimestamp(rec.endedAt, "HH:mm:ss")
-                                        Card(
-                                            onClick = { viewModel.selectRecording(rec.id) },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            shape = RoundedCornerShape(12.dp),
-                                            colors = CardDefaults.cardColors(
-                                                containerColor = if (isCurrent)
-                                                    MaterialTheme.colorScheme.primaryContainer
-                                                else
-                                                    MaterialTheme.colorScheme.surface,
-                                            ),
-                                            border = if (isCurrent) {
-                                                BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
-                                            } else {
-                                                BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
-                                            },
-                                            elevation = CardDefaults.cardElevation(
-                                                defaultElevation = if (isCurrent) 4.dp else 1.dp,
-                                            ),
+                                    // Title bar with accent line
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .width(3.dp)
+                                                .height(18.dp)
+                                                .clip(RoundedCornerShape(2.dp))
+                                                .background(MaterialTheme.colorScheme.primary),
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "片段列表",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                        Spacer(modifier = Modifier.weight(1f))
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = MaterialTheme.colorScheme.secondaryContainer,
                                         ) {
-                                            Row(
-                                                modifier = Modifier
-                                                    .height(IntrinsicSize.Min)
-                                                    .defaultMinSize(minHeight = 64.dp),
+                                            Text(
+                                                text = "${uiState.currentIndex + 1} / ${uiState.cameraRecordings.size}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    LazyVerticalGrid(
+                                        columns = GridCells.Adaptive(minSize = 160.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .weight(1f),
+                                    ) {
+                                        itemsIndexed(uiState.cameraRecordings) { index, rec ->
+                                            val isCurrent = index == uiState.currentIndex
+                                            val startTime = FormatUtils.formatTimestamp(rec.startedAt, "HH:mm:ss")
+                                            val endTime = FormatUtils.formatTimestamp(rec.endedAt, "HH:mm:ss")
+                                            Card(
+                                                onClick = { viewModel.selectRecording(rec.id) },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = if (isCurrent)
+                                                        MaterialTheme.colorScheme.primaryContainer
+                                                    else
+                                                        MaterialTheme.colorScheme.surface,
+                                                ),
+                                                border = if (isCurrent) {
+                                                    BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
+                                                } else {
+                                                    BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
+                                                },
+                                                elevation = CardDefaults.cardElevation(
+                                                    defaultElevation = if (isCurrent) 4.dp else 1.dp,
+                                                ),
                                             ) {
-                                                // Left accent bar
-                                                Box(
+                                                Row(
                                                     modifier = Modifier
-                                                        .width(4.dp)
-                                                        .fillMaxHeight()
-                                                        .background(
-                                                            if (isCurrent)
-                                                                MaterialTheme.colorScheme.primary
-                                                            else
-                                                                MaterialTheme.colorScheme.outlineVariant,
-                                                        ),
-                                                )
-                                                // Content
-                                                Column(
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .padding(12.dp),
-                                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                                        .height(IntrinsicSize.Min)
+                                                        .defaultMinSize(minHeight = 64.dp),
                                                 ) {
-                                                    // Time range: "14:30:00 → 14:35:00"
-                                                    Text(
-                                                        text = "$startTime → $endTime",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = if (isCurrent)
-                                                            MaterialTheme.colorScheme.onPrimaryContainer
-                                                        else
-                                                            MaterialTheme.colorScheme.onSurface,
+                                                    // Left accent bar
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .width(4.dp)
+                                                            .fillMaxHeight()
+                                                            .background(
+                                                                if (isCurrent)
+                                                                    MaterialTheme.colorScheme.primary
+                                                                else
+                                                                    MaterialTheme.colorScheme.outlineVariant,
+                                                            ),
                                                     )
-                                                    // Duration
-                                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Icon(
-                                                            Icons.Default.Schedule,
-                                                            contentDescription = null,
-                                                            modifier = Modifier.size(12.dp),
-                                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                                        )
-                                                        Spacer(modifier = Modifier.width(4.dp))
+                                                    // Content
+                                                    Column(
+                                                        modifier = Modifier
+                                                            .weight(1f)
+                                                            .padding(12.dp),
+                                                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                                                    ) {
+                                                        // Time range: "14:30:00 → 14:35:00"
                                                         Text(
-                                                            text = FormatUtils.formatDurationShort(rec.duration),
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                                            text = "$startTime → $endTime",
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = if (isCurrent)
+                                                                MaterialTheme.colorScheme.onPrimaryContainer
+                                                            else
+                                                                MaterialTheme.colorScheme.onSurface,
                                                         )
+                                                        // Duration
+                                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                            Icon(
+                                                                Icons.Default.Schedule,
+                                                                contentDescription = null,
+                                                                modifier = Modifier.size(12.dp),
+                                                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                                            )
+                                                            Spacer(modifier = Modifier.width(4.dp))
+                                                            Text(
+                                                                text = FormatUtils.formatDurationShort(rec.duration),
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                                            )
+                                                        }
                                                     }
                                                 }
                                             }
@@ -376,7 +449,7 @@ fun RecordingDetailScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                     DetailRow(Icons.Default.Fingerprint, "ID", recording.id)
                     HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
-                    DetailRow(Icons.Default.AccountCircle, "摄像头 ID", recording.cameraId)
+                    DetailRow(Icons.Default.AccountCircle, "设备 ID", recording.cameraId)
                     HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
                     DetailRow(Icons.Default.Code, "格式", recording.format.uppercase())
                     HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
@@ -568,15 +641,14 @@ private fun VideoPlayerCard(
     playerRef: MutableState<NvrVideoPlayer?>,
     downloadUrl: String,
     onFirstReady: (url: String, player: NvrVideoPlayer) -> Unit,
+    isFullscreen: Boolean,
+    onToggleFullscreen: () -> Unit,
 ) {
     // ── state tracked via GSY listener callbacks ──
     var currentState by remember { mutableIntStateOf(-1) }
     var currentPosition by remember { mutableLongStateOf(0L) }
     var totalDuration by remember { mutableLongStateOf(0L) }
     var showControls by remember { mutableStateOf(false) }
-    var isFullscreen by remember { mutableStateOf(false) }
-
-    val context = LocalContext.current
 
     val listener = remember {
         object : NvrPlayerListener {
@@ -603,21 +675,11 @@ private fun VideoPlayerCard(
         }
     }
 
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-        ),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(12.dp)),
-        ) {
-            // GSYVideoPlayer surface (custom NvrVideoPlayer — no default controls)
+    // Inner content: player surface + control overlay
+    @Composable
+    fun PlayerInner() {
+        Box(modifier = Modifier.fillMaxSize()) {
+            // GSYVideoPlayer surface
             AndroidView(
                 factory = { ctx ->
                     NvrVideoPlayer(ctx).apply {
@@ -630,10 +692,7 @@ private fun VideoPlayerCard(
             )
 
             // ── Control overlay ──
-            Box(
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                // When controls hidden → transparent tap zone to show them
+            Box(modifier = Modifier.fillMaxSize()) {
                 if (!showControls) {
                     Box(
                         modifier = Modifier
@@ -642,7 +701,6 @@ private fun VideoPlayerCard(
                     )
                 }
 
-                // Controls content (fade in/out)
                 androidx.compose.animation.AnimatedVisibility(
                     visible = showControls,
                     enter = fadeIn(animationSpec = tween(300)),
@@ -662,99 +720,74 @@ private fun VideoPlayerCard(
                             )
                             .clickable { showControls = false },
                     ) {
-                    // ── Center play/pause button ──
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        FilledIconButton(
-                            onClick = {
-                                playerRef.value?.clickStartIcon()
-                            },
-                            modifier = Modifier.size(56.dp),
+                        // ── Center play/pause ──
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
                         ) {
-                            Icon(
-                                if (isPlaying) Icons.Default.Pause
-                                else Icons.Default.PlayArrow,
-                                contentDescription = if (isPlaying) "暂停" else "播放",
-                                modifier = Modifier.size(32.dp),
-                            )
-                        }
-                    }
-
-                    // ── Bottom bar: seek + time ──
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.BottomCenter),
-                        color = Color.Transparent,
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = formatPlayerTime(currentPosition),
-                                color = Color.White,
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                            RecordingSeekBar(
-                                duration = totalDuration,
-                                position = currentPosition,
-                                onPositionChange = { target, pressing ->
-                                    playerRef.value?.seekTo(target)
-                                    if (pressing) currentPosition = target
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(horizontal = 8.dp),
-                            )
-                            Text(
-                                text = formatPlayerTime(totalDuration),
-                                color = Color.White,
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                            IconButton(
-                                onClick = {
-                                    val activity = context as? Activity ?: return@IconButton
-                                    isFullscreen = !isFullscreen
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                                        val ctrl = activity.window.insetsController
-                                        if (isFullscreen) {
-                                            ctrl?.hide(WindowInsets.Type.systemBars())
-                                            ctrl?.systemBarsBehavior =
-                                                WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                                        } else {
-                                            ctrl?.show(WindowInsets.Type.systemBars())
-                                        }
-                                    } else {
-                                        @Suppress("DEPRECATION")
-                                        activity.window.decorView.systemUiVisibility =
-                                            if (isFullscreen) {
-                                                View.SYSTEM_UI_FLAG_FULLSCREEN or
-                                                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                                                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                                            } else {
-                                                View.SYSTEM_UI_FLAG_VISIBLE
-                                            }
-                                    }
-                                },
-                                modifier = Modifier.size(36.dp),
+                            FilledIconButton(
+                                onClick = { playerRef.value?.clickStartIcon() },
+                                modifier = Modifier.size(56.dp),
                             ) {
                                 Icon(
-                                    imageVector = if (isFullscreen)
-                                        Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                                    contentDescription = if (isFullscreen) "退出全屏" else "全屏",
-                                    tint = Color.White,
-                                    modifier = Modifier.size(24.dp),
+                                    if (isPlaying) Icons.Default.Pause
+                                    else Icons.Default.PlayArrow,
+                                    contentDescription = if (isPlaying) "暂停" else "播放",
+                                    modifier = Modifier.size(32.dp),
                                 )
+                            }
+                        }
+
+                        // ── Bottom bar: seek + time + fullscreen ──
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .align(Alignment.BottomCenter),
+                            color = Color.Transparent,
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = formatPlayerTime(currentPosition),
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                                RecordingSeekBar(
+                                    duration = totalDuration,
+                                    position = currentPosition,
+                                    onPositionChange = { target, pressing ->
+                                        playerRef.value?.seekTo(target)
+                                        if (pressing) currentPosition = target
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(horizontal = 8.dp),
+                                )
+                                Text(
+                                    text = formatPlayerTime(totalDuration),
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                                IconButton(
+                                    onClick = onToggleFullscreen,
+                                    modifier = Modifier.size(36.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = if (isFullscreen)
+                                            Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                                        contentDescription = if (isFullscreen) "退出全屏" else "全屏",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(24.dp),
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
             }
 
             // ── Buffering indicator ──
@@ -769,6 +802,31 @@ private fun VideoPlayerCard(
                         strokeWidth = 3.dp,
                     )
                 }
+            }
+        }
+    }
+
+    // Outer wrapper: Card (normal) vs black fullscreen
+    if (isFullscreen) {
+        Box(modifier = modifier.background(Color.Black)) {
+            PlayerInner()
+        }
+    } else {
+        Card(
+            modifier = modifier,
+            shape = RoundedCornerShape(12.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            ),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(16f / 9f)
+                    .clip(RoundedCornerShape(12.dp)),
+            ) {
+                PlayerInner()
             }
         }
     }

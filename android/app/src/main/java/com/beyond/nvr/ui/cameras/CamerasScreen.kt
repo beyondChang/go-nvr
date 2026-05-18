@@ -42,7 +42,7 @@ fun CamerasScreen(
                             tint = MaterialTheme.colorScheme.primary,
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("摄像头")
+                        Text("设备")
                     }
                 },
                 navigationIcon = {
@@ -101,13 +101,13 @@ fun CamerasScreen(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "未配置摄像头",
+                        text = "未配置设备",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Medium,
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "点击 + 按钮添加摄像头",
+                        text = "点击 + 按钮添加设备",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -115,7 +115,7 @@ fun CamerasScreen(
                     FilledTonalButton(onClick = { viewModel.showAddCameraDialog() }) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("添加摄像头")
+                        Text("添加设备")
                     }
                 }
             }
@@ -134,7 +134,7 @@ fun CamerasScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            text = "共 ${uiState.cameras.size} 个摄像头",
+                            text = "共 ${uiState.cameras.size} 个设备",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -147,7 +147,6 @@ fun CamerasScreen(
                     CameraListItem(
                         camera = camera,
                         onClick = { onCameraClick(camera.id) },
-                        onToggle = { viewModel.toggleCamera(camera) },
                         onDelete = { viewModel.deleteCamera(camera.id) },
                     )
                 }
@@ -173,7 +172,6 @@ fun CamerasScreen(
 private fun CameraListItem(
     camera: Camera,
     onClick: () -> Unit,
-    onToggle: () -> Unit,
     onDelete: () -> Unit,
 ) {
     Card(
@@ -214,7 +212,6 @@ private fun CameraListItem(
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Status dot
                     Surface(
                         modifier = Modifier.size(6.dp),
                         shape = RoundedCornerShape(3.dp),
@@ -222,7 +219,7 @@ private fun CameraListItem(
                     ) {}
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = camera.status ?: "未知",
+                        text = StatusUtils.parseStatus(camera.status).text,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -239,10 +236,13 @@ private fun CameraListItem(
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
-            Switch(
-                checked = camera.enabled,
-                onCheckedChange = { onToggle() },
-            )
+            IconButton(onClick = onDelete) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "删除",
+                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                )
+            }
         }
     }
 }
@@ -270,7 +270,7 @@ private fun AddCameraDialog(
                     tint = MaterialTheme.colorScheme.primary,
                 )
                 Spacer(modifier = Modifier.width(10.dp))
-                Text("添加摄像头")
+                Text("添加设备")
             }
         },
         text = {
@@ -279,7 +279,7 @@ private fun AddCameraDialog(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text("名称") },
-                    placeholder = { Text("例如：大门摄像头") },
+                    placeholder = { Text("例如：大门设备") },
                     leadingIcon = { Icon(Icons.Default.Label, contentDescription = null) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
