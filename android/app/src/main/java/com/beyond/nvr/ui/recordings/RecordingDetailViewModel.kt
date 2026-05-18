@@ -2,7 +2,6 @@ package com.beyond.nvr.ui.recordings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.beyond.nvr.data.model.FrameInfo
 import com.beyond.nvr.data.model.Recording
 import com.beyond.nvr.data.repository.CameraRepository
 import com.beyond.nvr.data.repository.RecordingRepository
@@ -13,7 +12,6 @@ import kotlinx.coroutines.launch
 
 data class RecordingDetailUiState(
     val recording: Recording? = null,
-    val frames: List<FrameInfo> = emptyList(),
     val cameraRecordings: List<Recording> = emptyList(),
     val currentIndex: Int = -1,
     val isLoading: Boolean = true,
@@ -49,10 +47,6 @@ class RecordingDetailViewModel(
                     recording = recording,
                     isLoading = false,
                 )
-                // Load frames for MJPEG recordings
-                if (recording.format == "mjpeg") {
-                    loadFrames(recordingId)
-                }
                 // Load all recordings for the same camera
                 loadCameraRecordings(recording.cameraId, recordingId)
             },
@@ -96,17 +90,6 @@ class RecordingDetailViewModel(
         if (index < state.cameraRecordings.size - 1) {
             val nextRecording = state.cameraRecordings[index + 1]
             selectRecording(nextRecording.id)
-        }
-    }
-
-    private fun loadFrames(recordingId: String) {
-        viewModelScope.launch {
-            recordingRepository.listFrames(recordingId).fold(
-                onSuccess = { response ->
-                    _uiState.value = _uiState.value.copy(frames = response.frames)
-                },
-                onFailure = { /* ignore */ },
-            )
         }
     }
 

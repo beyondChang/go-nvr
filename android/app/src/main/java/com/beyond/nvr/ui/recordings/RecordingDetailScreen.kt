@@ -192,44 +192,8 @@ fun RecordingDetailScreen(
                             },
                         )
                     }
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            ),
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .aspectRatio(16f / 9f),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        Icons.Default.Image,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(48.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                    )
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Text(
-                                        text = "MJPEG 录像",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                    Text(
-                                        text = "不支持视频播放",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                    )
-                                }
-                            }
-                        }
 
-                        // ── Episode Grid ──
+                    // ── Episode Grid ──
                     if (uiState.cameraRecordings.isNotEmpty()) {
                         Card(
                             modifier = Modifier
@@ -412,11 +376,6 @@ fun RecordingDetailScreen(
                     DetailRow(Icons.Default.Schedule, "开始时间", startedDisplay)
                     HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
                     DetailRow(Icons.Default.Schedule, "结束时间", endedDisplay)
-
-                    if (recording.format == "mjpeg" && uiState.frames.isNotEmpty()) {
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
-                        DetailRow(Icons.Default.Collections, "帧数", "${uiState.frames.size}")
-                    }
                 }
             },
             dismissButton = {
