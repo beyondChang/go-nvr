@@ -1,5 +1,11 @@
 package com.beyond.nvr.ui.recordings
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -15,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -169,142 +176,20 @@ fun RecordingDetailScreen(
                 ) {
                     // ── Video Player (custom controls) ──
                     if (isPlayable && serverUrl.isNotBlank()) {
-                        var isPlaying by remember { mutableStateOf(true) }
-                        var currentPosition by remember { mutableStateOf(0L) }
-                        var duration by remember { mutableStateOf(0L) }
-                        var showControls by remember { mutableStateOf(false) }
-
-                        // Timer — poll player position while playing
-                        LaunchedEffect(isPlaying) {
-                            if (isPlaying) {
-                                while (true) {
-                                    delay(250)
-                                    val p = playerRef.value ?: continue
-                                    currentPosition = p.currentPositionWhenPlaying
-                                    duration = p.duration
-                                }
-                            }
-                        }
-
-                        // Auto-hide controls after 4s
-                        LaunchedEffect(showControls) {
-                            if (showControls) {
-                                delay(4000)
-                                showControls = false
-                            }
-                        }
-
-                        Card(
+                        VideoPlayerCard(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            ),
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .aspectRatio(16f / 9f)
-                                    .clip(RoundedCornerShape(12.dp)),
-                            ) {
-                                // GSYVideoPlayer with default controls hidden
-                                AndroidView(
-                                    factory = { ctx ->
-                                        StandardGSYVideoPlayer(ctx).apply {
-                                            setIsTouchWiget(false)
-                                            playerRef.value = this
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxSize(),
-                                )
-
-                                // Tap zone to toggle controls
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .clickable { showControls = !showControls },
-                                )
-
-                                // ── Custom control overlay ──
-                                if (showControls) {
-                                    // Dim overlay
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .background(Color.Black.copy(alpha = 0.35f))
-                                            .clickable(enabled = false) { },
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        // Center play/pause button
-                                        FilledIconButton(
-                                            onClick = {
-                                                val gsy = playerRef.value ?: return@FilledIconButton
-                                                if (isPlaying) {
-                                                    gsy.onVideoPause()
-                                                } else {
-                                                    gsy.onVideoResume()
-                                                }
-                                                isPlaying = !isPlaying
-                                            },
-                                            modifier = Modifier.size(56.dp),
-                                        ) {
-                                            Icon(
-                                                if (isPlaying) Icons.Default.Pause
-                                                else Icons.Default.PlayArrow,
-                                                contentDescription = if (isPlaying) "暂停" else "播放",
-                                                modifier = Modifier.size(32.dp),
-                                            )
-                                        }
-                                    }
-
-                                    // Bottom bar: seek + time
-                                    Surface(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .align(Alignment.BottomCenter),
-                                        color = Color.Black.copy(alpha = 0.6f),
-                                    ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(horizontal = 12.dp, vertical = 6.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                        ) {
-                                            Text(
-                                                text = formatPlayerTime(currentPosition),
-                                                color = Color.White,
-                                                style = MaterialTheme.typography.labelSmall,
-                                            )
-                                            Slider(
-                                                value = if (duration > 0L)
-                                                    currentPosition.toFloat() / duration.toFloat()
-                                                else 0f,
-                                                onValueChange = { fraction ->
-                                                    val target = (fraction * duration).toLong()
-                                                    playerRef.value?.seekTo(target)
-                                                    currentPosition = target
-                                                },
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .padding(horizontal = 8.dp),
-                                                colors = SliderDefaults.colors(
-                                                    thumbColor = Color.White,
-                                                    activeTrackColor = Color.White,
-                                                    inactiveTrackColor = Color.White.copy(alpha = 0.3f),
-                                                ),
-                                            )
-                                            Text(
-                                                text = formatPlayerTime(duration),
-                                                color = Color.White,
-                                                style = MaterialTheme.typography.labelSmall,
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } else if (uiState.recording?.format == "mjpeg") {
+                            playerRef = playerRef,
+                            downloadUrl = downloadUrl,
+                            onFirstReady = { url, player ->
+                                val authHeader = CredentialCache.get()
+                                val headersJson = if (authHeader != null) {
+                                    """{"Authorization":"$authHeader"}"""
+                                } else ""
+                                player.setUp(url, false, headersJson)
+                                player.startPlayLogic()
+                            },
+                        )
+                    }
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
@@ -341,9 +226,8 @@ fun RecordingDetailScreen(
                                 }
                             }
                         }
-                    }
 
-                    // ── Episode Grid ──
+                        // ── Episode Grid ──
                     if (uiState.cameraRecordings.isNotEmpty()) {
                         Card(
                             modifier = Modifier
@@ -565,6 +449,212 @@ private fun formatPlayerTime(ms: Long): String {
     val s = totalSecs % 60
     return if (h > 0) "%d:%02d:%02d".format(h, m, s)
     else "%02d:%02d".format(m, s)
+}
+
+/**
+ * GSYVideoPlayer card with custom Compose control overlay.
+ * Extracted to a separate composable so [AnimatedVisibility] resolves
+ * to the top-level function rather than [ColumnScope.AnimatedVisibility].
+ */
+@Composable
+private fun VideoPlayerCard(
+    modifier: Modifier,
+    playerRef: MutableState<StandardGSYVideoPlayer?>,
+    downloadUrl: String,
+    onFirstReady: (url: String, player: StandardGSYVideoPlayer) -> Unit,
+) {
+    var isPlaying by remember { mutableStateOf(true) }
+    var currentPosition by remember { mutableStateOf(0L) }
+    var duration by remember { mutableStateOf(0L) }
+    var showControls by remember { mutableStateOf(false) }
+    var toggleIconVisible by remember { mutableStateOf(false) }
+
+    // Timer — poll player position while playing
+    LaunchedEffect(isPlaying) {
+        if (isPlaying) {
+            while (true) {
+                delay(250)
+                val p = playerRef.value ?: continue
+                currentPosition = p.currentPositionWhenPlaying
+                duration = p.duration
+            }
+        }
+    }
+
+    // Auto-hide controls after 4s
+    LaunchedEffect(showControls) {
+        if (showControls) {
+            delay(4000)
+            showControls = false
+        }
+    }
+
+    // Briefly show center toggle icon
+    LaunchedEffect(toggleIconVisible) {
+        if (toggleIconVisible) {
+            delay(1000)
+            toggleIconVisible = false
+        }
+    }
+
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+        ),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+                .clip(RoundedCornerShape(12.dp)),
+        ) {
+            // GSYVideoPlayer with default controls hidden
+            AndroidView(
+                factory = { ctx ->
+                    val gsy = StandardGSYVideoPlayer(ctx).apply {
+                        setIsTouchWiget(false)
+                    }
+                    playerRef.value = gsy
+                    onFirstReady(downloadUrl, gsy)
+                    gsy
+                },
+                modifier = Modifier.fillMaxSize(),
+            )
+
+            // Tap zone
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable { showControls = !showControls },
+            )
+
+            // ── Gradient overlay + controls ──
+            androidx.compose.animation.AnimatedVisibility(
+                visible = showControls,
+                enter = fadeIn(animationSpec = tween(300)),
+                exit = fadeOut(animationSpec = tween(300)),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                Pair(0f, Color.Black),
+                                Pair(.2f, Color.Transparent),
+                                Pair(.7f, Color.Transparent),
+                                Pair(1f, Color.Black),
+                            ),
+                            alpha = 0.8f,
+                        )
+                        .clickable(enabled = false) {},
+                ) {
+                    // Center play/pause button
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        FilledIconButton(
+                            onClick = {
+                                val gsy = playerRef.value ?: return@FilledIconButton
+                                if (isPlaying) {
+                                    gsy.onVideoPause()
+                                } else {
+                                    gsy.onVideoResume()
+                                }
+                                isPlaying = !isPlaying
+                                toggleIconVisible = true
+                            },
+                            modifier = Modifier.size(56.dp),
+                        ) {
+                            Icon(
+                                if (isPlaying) Icons.Default.Pause
+                                else Icons.Default.PlayArrow,
+                                contentDescription = if (isPlaying) "暂停" else "播放",
+                                modifier = Modifier.size(32.dp),
+                            )
+                        }
+                    }
+
+                    // Bottom bar: seek + time
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(Alignment.BottomCenter),
+                        color = Color.Transparent,
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = formatPlayerTime(currentPosition),
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                            Slider(
+                                value = if (duration > 0L)
+                                    currentPosition.toFloat() / duration.toFloat()
+                                else 0f,
+                                onValueChange = { fraction ->
+                                    val target = (fraction * duration).toLong()
+                                    playerRef.value?.seekTo(target)
+                                    currentPosition = target
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(horizontal = 8.dp),
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color.White,
+                                    activeTrackColor = Color.White,
+                                    inactiveTrackColor = Color.White.copy(alpha = 0.3f),
+                                ),
+                            )
+                            Text(
+                                text = formatPlayerTime(duration),
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ── Brief toggle icon (scale+fade, appears on play/pause) ──
+            androidx.compose.animation.AnimatedVisibility(
+                visible = toggleIconVisible,
+                enter = scaleIn(animationSpec = tween(250)) + fadeIn(animationSpec = tween(250)),
+                exit = scaleOut(animationSpec = tween(250)) + fadeOut(animationSpec = tween(250)),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(enabled = false) {},
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = Color.Black.copy(alpha = 0.6f),
+                        modifier = Modifier.size(72.dp),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                if (isPlaying) Icons.Default.PlayArrow
+                                else Icons.Default.Pause,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(40.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable

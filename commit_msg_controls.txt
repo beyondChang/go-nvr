@@ -1,0 +1,10 @@
+feat: 自定义 Compose 控制栏替换 GSYVideoPlayer 默认控制栏
+
+- 提取 VideoPlayerCard 独立 composable 函数，避免 ColumnScope 干扰
+- 添加自定义控制叠加层：渐隐/渐显（4s 自动隐藏）
+- 添加中心播放/暂停按钮（FilledIconButton）
+- 添加底部进度条 + 当前/总时间显示
+- 添加播放/暂停时的缩放图标反馈（1s 后自动消失）
+- 修复 AndroidView factory 中 GSYVideoPlayer 的 Kotlin 兼容性
+
+Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>
