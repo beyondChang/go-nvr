@@ -2,6 +2,7 @@ package com.beyond.nvr.ui.recordings
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -18,11 +19,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.beyond.nvr.data.api.CredentialCache
 import com.beyond.nvr.data.repository.PreferencesRepository
 import com.shuyu.gsyvideoplayer.video.StandardGSYVideoPlayer
+import kotlinx.coroutines.delay
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import com.beyond.nvr.ui.util.FormatUtils
@@ -164,8 +167,33 @@ fun RecordingDetailScreen(
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    // ── Video Player ──
+                    // ── Video Player (custom controls) ──
                     if (isPlayable && serverUrl.isNotBlank()) {
+                        var isPlaying by remember { mutableStateOf(true) }
+                        var currentPosition by remember { mutableStateOf(0L) }
+                        var duration by remember { mutableStateOf(0L) }
+                        var showControls by remember { mutableStateOf(false) }
+
+                        // Timer — poll player position while playing
+                        LaunchedEffect(isPlaying) {
+                            if (isPlaying) {
+                                while (true) {
+                                    delay(250)
+                                    val p = playerRef.value ?: continue
+                                    currentPosition = p.currentPositionWhenPlaying
+                                    duration = p.duration
+                                }
+                            }
+                        }
+
+                        // Auto-hide controls after 4s
+                        LaunchedEffect(showControls) {
+                            if (showControls) {
+                                delay(4000)
+                                showControls = false
+                            }
+                        }
+
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
@@ -180,14 +208,100 @@ fun RecordingDetailScreen(
                                     .aspectRatio(16f / 9f)
                                     .clip(RoundedCornerShape(12.dp)),
                             ) {
+                                // GSYVideoPlayer with default controls hidden
                                 AndroidView(
                                     factory = { ctx ->
                                         StandardGSYVideoPlayer(ctx).apply {
+                                            setIsTouchWiget(false)
                                             playerRef.value = this
                                         }
                                     },
                                     modifier = Modifier.fillMaxSize(),
                                 )
+
+                                // Tap zone to toggle controls
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clickable { showControls = !showControls },
+                                )
+
+                                // ── Custom control overlay ──
+                                if (showControls) {
+                                    // Dim overlay
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(Color.Black.copy(alpha = 0.35f))
+                                            .clickable(enabled = false) { },
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        // Center play/pause button
+                                        FilledIconButton(
+                                            onClick = {
+                                                val gsy = playerRef.value ?: return@FilledIconButton
+                                                if (isPlaying) {
+                                                    gsy.onVideoPause()
+                                                } else {
+                                                    gsy.onVideoResume()
+                                                }
+                                                isPlaying = !isPlaying
+                                            },
+                                            modifier = Modifier.size(56.dp),
+                                        ) {
+                                            Icon(
+                                                if (isPlaying) Icons.Default.Pause
+                                                else Icons.Default.PlayArrow,
+                                                contentDescription = if (isPlaying) "暂停" else "播放",
+                                                modifier = Modifier.size(32.dp),
+                                            )
+                                        }
+                                    }
+
+                                    // Bottom bar: seek + time
+                                    Surface(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .align(Alignment.BottomCenter),
+                                        color = Color.Black.copy(alpha = 0.6f),
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Text(
+                                                text = formatPlayerTime(currentPosition),
+                                                color = Color.White,
+                                                style = MaterialTheme.typography.labelSmall,
+                                            )
+                                            Slider(
+                                                value = if (duration > 0L)
+                                                    currentPosition.toFloat() / duration.toFloat()
+                                                else 0f,
+                                                onValueChange = { fraction ->
+                                                    val target = (fraction * duration).toLong()
+                                                    playerRef.value?.seekTo(target)
+                                                    currentPosition = target
+                                                },
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .padding(horizontal = 8.dp),
+                                                colors = SliderDefaults.colors(
+                                                    thumbColor = Color.White,
+                                                    activeTrackColor = Color.White,
+                                                    inactiveTrackColor = Color.White.copy(alpha = 0.3f),
+                                                ),
+                                            )
+                                            Text(
+                                                text = formatPlayerTime(duration),
+                                                color = Color.White,
+                                                style = MaterialTheme.typography.labelSmall,
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     } else if (uiState.recording?.format == "mjpeg") {
@@ -441,6 +555,16 @@ fun RecordingDetailScreen(
             },
         )
     }
+}
+
+/** Format millis to MM:SS or HH:MM:SS */
+private fun formatPlayerTime(ms: Long): String {
+    val totalSecs = ms / 1000
+    val h = totalSecs / 3600
+    val m = (totalSecs % 3600) / 60
+    val s = totalSecs % 60
+    return if (h > 0) "%d:%02d:%02d".format(h, m, s)
+    else "%02d:%02d".format(m, s)
 }
 
 @Composable
