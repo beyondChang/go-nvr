@@ -34,7 +34,21 @@ import com.shuyu.gsyvideoplayer.video.base.GSYVideoView.CURRENT_STATE_ERROR
 import com.shuyu.gsyvideoplayer.video.base.GSYVideoView.CURRENT_STATE_AUTO_COMPLETE
 import com.shuyu.gsyvideoplayer.video.base.GSYVideoView.CURRENT_STATE_PREPAREING
 import com.shuyu.gsyvideoplayer.video.base.GSYVideoView.CURRENT_STATE_PLAYING_BUFFERING_START
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import kotlinx.coroutines.delay
+import kotlin.math.max
 import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import com.beyond.nvr.ui.util.FormatUtils
@@ -413,6 +427,129 @@ private fun formatPlayerTime(ms: Long): String {
 }
 
 /**
+ * Custom seek bar for video playback, based on the reference project's ArkSeekBar.
+ * Uses Canvas to draw three layers (background/buffered/active track).
+ * Supports both drag and tap for seeking.
+ */
+@Composable
+private fun RecordingSeekBar(
+    duration: Long,
+    position: Long,
+    onPositionChange: (position: Long, pressing: Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    trackWidth: Float = 32f,
+    colors: SliderColors = SliderDefaults.colors(
+        thumbColor = Color.White,
+        activeTrackColor = Color.White,
+        inactiveTrackColor = Color.White.copy(alpha = 0.3f),
+        disabledActiveTrackColor = Color.White.copy(alpha = 0.5f),
+    ),
+) {
+    val density = LocalDensity.current
+    var sliderWidth by remember { mutableStateOf(0.dp) }
+    var thumbOffsetX by remember { mutableFloatStateOf(0f) }
+    var pressing by remember { mutableStateOf(false) }
+    var previewPosition by remember { mutableLongStateOf(0L) }
+    var thumbOffsetXMax by remember { mutableFloatStateOf(1f) }
+    val thumbOffsetXMin by remember { mutableFloatStateOf(0f) }
+
+    val draggableState = rememberDraggableState {
+        pressing = true
+        thumbOffsetX = (thumbOffsetX + it).coerceIn(thumbOffsetXMin, thumbOffsetXMax)
+        val percent = thumbOffsetX / thumbOffsetXMax
+        previewPosition = (percent * duration).toLong()
+        onPositionChange(previewPosition, true)
+    }
+
+    LaunchedEffect(sliderWidth) {
+        thumbOffsetXMax = with(density) { max(1f, (sliderWidth - 32.dp).toPx()) }
+    }
+
+    LaunchedEffect(position) {
+        if (pressing) return@LaunchedEffect
+        val percent = (position.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+        thumbOffsetX = (percent * thumbOffsetXMax).coerceIn(thumbOffsetXMin, thumbOffsetXMax)
+    }
+
+    BoxWithConstraints(
+        modifier = modifier
+            .draggable(
+                state = draggableState,
+                orientation = Orientation.Horizontal,
+                onDragStopped = {
+                    onPositionChange(previewPosition, false)
+                    delay(200)
+                    pressing = false
+                }
+            )
+            .pointerInput(Unit) {
+                detectTapGestures { offset ->
+                    val xDp = with(density) { offset.x.toDp() }
+                    val percent =
+                        (xDp.coerceIn(16.dp, sliderWidth - 16.dp) - 16.dp) / (sliderWidth - 32.dp)
+                    val newPosition = (percent * duration).toLong()
+                    onPositionChange(newPosition, false)
+                }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        sliderWidth = this.maxWidth
+        SeekBarTrack(
+            modifier = Modifier.padding(horizontal = 5.dp),
+            duration = duration,
+            position = if (pressing) previewPosition else position,
+            bufferedPercentage = 0,
+            trackWidth = trackWidth,
+            colors = colors,
+        )
+    }
+}
+
+@Composable
+private fun SeekBarTrack(
+    modifier: Modifier = Modifier,
+    duration: Long,
+    position: Long,
+    bufferedPercentage: Int,
+    trackWidth: Float = 32f,
+    colors: SliderColors = SliderDefaults.colors(),
+) {
+    Canvas(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(trackWidth.dp)
+    ) {
+        // 1) Background track
+        drawLine(
+            color = colors.inactiveTrackColor,
+            start = Offset(0f, center.y),
+            end = Offset(size.width, center.y),
+            strokeWidth = trackWidth,
+            cap = StrokeCap.Round,
+        )
+        // 2) Buffered track
+        if (bufferedPercentage > 0) {
+            drawLine(
+                color = colors.disabledActiveTrackColor,
+                start = Offset(0f, center.y),
+                end = Offset(size.width * bufferedPercentage / 100f, center.y),
+                strokeWidth = trackWidth,
+                cap = StrokeCap.Round,
+            )
+        }
+        // 3) Active (played) track
+        val fraction = (position.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+        drawLine(
+            color = colors.activeTrackColor,
+            start = Offset(0f, center.y),
+            end = Offset(size.width * fraction, center.y),
+            strokeWidth = trackWidth,
+            cap = StrokeCap.Round,
+        )
+    }
+}
+
+/**
  * GSYVideoPlayer card with custom Compose control overlay.
  *
  * Uses [NvrVideoPlayer] (minimal layout + listener pattern) instead of polling,
@@ -547,23 +684,16 @@ private fun VideoPlayerCard(
                                 color = Color.White,
                                 style = MaterialTheme.typography.labelSmall,
                             )
-                            Slider(
-                                value = if (totalDuration > 0L)
-                                    currentPosition.toFloat() / totalDuration.toFloat()
-                                else 0f,
-                                onValueChange = { fraction ->
-                                    val target = (fraction * totalDuration).toLong()
+                            RecordingSeekBar(
+                                duration = totalDuration,
+                                position = currentPosition,
+                                onPositionChange = { target, pressing ->
                                     playerRef.value?.seekTo(target)
-                                    currentPosition = target
+                                    if (pressing) currentPosition = target
                                 },
                                 modifier = Modifier
                                     .weight(1f)
                                     .padding(horizontal = 8.dp),
-                                colors = SliderDefaults.colors(
-                                    thumbColor = Color.White,
-                                    activeTrackColor = Color.White,
-                                    inactiveTrackColor = Color.White.copy(alpha = 0.3f),
-                                ),
                             )
                             Text(
                                 text = formatPlayerTime(totalDuration),

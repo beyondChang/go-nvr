@@ -1,7 +1,0 @@
-去掉 MJPEG 录像（下方占位卡片 + 帧数加载 + frames 状态）
-
-- RecordingDetailScreen: 移除 MJPEG 占位 Card（"MJPEG 录像/不支持视频播放"）
-- RecordingDetailScreen: 移除详情弹窗中的帧数显示
-- RecordingDetailViewModel: 移除 frames 状态、loadFrames 函数及 FrameInfo 导入
-
-Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>

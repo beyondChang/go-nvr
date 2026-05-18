@@ -1,0 +1,9 @@
+feat: 按参考项目 ArkSeekBar 实现自定义 Canvas 进度条
+
+将 Material3 Slider 替换为 RecordingSeekBar：
+- 使用 Canvas 绘制三層轨道（背景/缓冲/已播放）
+- 支持拖拽（draggable + rememberDraggableState）和点击跳转（detectTapGestures）
+- 架构参考 compos-ui222/video 的 ArkSeekBar 实现
+- 保持相同的 SliderDefaults.colors 白色主题配色
+
+Co-Authored-By: AtomCode (deepseek-v4-flash) <noreply@atomgit.com>
