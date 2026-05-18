@@ -42,6 +42,14 @@ fun DashboardScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showMenu by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // 收集刷新成功提示
+    LaunchedEffect(Unit) {
+        viewModel.refreshEvent.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -148,9 +156,17 @@ fun DashboardScreen(
                             (uiState.stats!!.usedBytes.toFloat() / uiState.stats!!.totalBytes.coerceAtLeast(1)) * 100f
                         } else null,
                     )
-                }
+                 }
             }
         }
+
+        // 底部 Snackbar 提示
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(16.dp),
+        )
     }
 }
 

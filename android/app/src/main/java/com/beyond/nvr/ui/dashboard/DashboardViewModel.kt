@@ -7,8 +7,11 @@ import com.beyond.nvr.data.model.StorageStats
 import com.beyond.nvr.data.repository.AuthRepository
 import com.beyond.nvr.data.repository.CameraRepository
 import com.beyond.nvr.data.repository.StatsRepository
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
@@ -30,6 +33,11 @@ class DashboardViewModel(
 
     private val _uiState = MutableStateFlow(DashboardUiState())
     val uiState: StateFlow<DashboardUiState> = _uiState.asStateFlow()
+
+    private val _refreshEvent = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val refreshEvent: SharedFlow<String> = _refreshEvent.asSharedFlow()
+
+    private var isFirstLoad = true
 
     init {
         loadData()
@@ -54,6 +62,10 @@ class DashboardViewModel(
                         offlineCount = offline,
                         isLoading = false,
                     )
+                    if (!isFirstLoad) {
+                        _refreshEvent.tryEmit("刷新成功")
+                    }
+                    isFirstLoad = false
                 },
                 onFailure = { e ->
                     _uiState.value = _uiState.value.copy(
