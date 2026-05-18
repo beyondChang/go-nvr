@@ -47,7 +47,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import android.app.Activity
+import android.os.Build
+import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import kotlinx.coroutines.delay
 import kotlin.math.max
 import org.koin.compose.koinInject
@@ -568,6 +574,9 @@ private fun VideoPlayerCard(
     var currentPosition by remember { mutableLongStateOf(0L) }
     var totalDuration by remember { mutableLongStateOf(0L) }
     var showControls by remember { mutableStateOf(false) }
+    var isFullscreen by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
 
     val listener = remember {
         object : NvrPlayerListener {
@@ -708,14 +717,38 @@ private fun VideoPlayerCard(
                                 style = MaterialTheme.typography.labelSmall,
                             )
                             IconButton(
-                                onClick = { /* TODO: toggle fullscreen */ },
-                                modifier = Modifier.size(28.dp),
+                                onClick = {
+                                    val activity = context as? Activity ?: return@IconButton
+                                    isFullscreen = !isFullscreen
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                        val ctrl = activity.window.insetsController
+                                        if (isFullscreen) {
+                                            ctrl?.hide(WindowInsets.Type.systemBars())
+                                            ctrl?.systemBarsBehavior =
+                                                WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                                        } else {
+                                            ctrl?.show(WindowInsets.Type.systemBars())
+                                        }
+                                    } else {
+                                        @Suppress("DEPRECATION")
+                                        activity.window.decorView.systemUiVisibility =
+                                            if (isFullscreen) {
+                                                View.SYSTEM_UI_FLAG_FULLSCREEN or
+                                                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                                                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                                            } else {
+                                                View.SYSTEM_UI_FLAG_VISIBLE
+                                            }
+                                    }
+                                },
+                                modifier = Modifier.size(36.dp),
                             ) {
                                 Icon(
-                                    Icons.Default.Fullscreen,
-                                    contentDescription = "全屏",
+                                    imageVector = if (isFullscreen)
+                                        Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                                    contentDescription = if (isFullscreen) "退出全屏" else "全屏",
                                     tint = Color.White,
-                                    modifier = Modifier.size(20.dp),
+                                    modifier = Modifier.size(24.dp),
                                 )
                             }
                         }
