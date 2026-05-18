@@ -55,7 +55,8 @@ fun DashboardScreen(
                 )
             ),
     ) {
-        if (uiState.isLoading) {
+        val showFullLoading = uiState.isLoading && uiState.cameras.isEmpty()
+        if (showFullLoading) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
