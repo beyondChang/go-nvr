@@ -139,8 +139,8 @@ func Run() {
 		os.Exit(0)
 	}
 
-	// Setup initial logger before any config
-	logger := authmw.SetupLogger("info", "text")
+	// Setup initial logger before any config (no data dir yet → stdout only)
+	logger := authmw.SetupLogger("info", "text", "")
 	slog.SetDefault(logger)
 
 	flag.Parse()
@@ -256,8 +256,9 @@ func Run() {
 
 	cfg.ApplyDefaults()
 
-	// Reconfigure logger with user settings after loading DB settings
-	logger = authmw.SetupLogger(cfg.Observability.LogLevel, cfg.Observability.LogFormat)
+	// Reconfigure logger with user settings and daily log file
+	logDir := filepath.Join(rootDir, "logs")
+	logger = authmw.SetupLogger(cfg.Observability.LogLevel, cfg.Observability.LogFormat, logDir)
 	slog.SetDefault(logger)
 
 	// Ensure admin user exists in the database (default: admin/123456)
