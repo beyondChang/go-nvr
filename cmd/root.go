@@ -156,6 +156,13 @@ func Run() {
 	// Resolve data directory — if relative, make it relative to working dir
 	rootDir := *dataDir
 
+	// Reconfigure logger with daily log file now that rootDir is known.
+	// This ensures all startup logs (DB init, config loading, etc.) are
+	// written to the log file, not just stdout.
+	logDir := filepath.Join(rootDir, "logs")
+	logger = authmw.SetupLogger("info", "text", logDir)
+	slog.SetDefault(logger)
+
 	// Build the config object from flags + defaults
 	cfg := &config.Config{
 		Server:  config.ServerConfig{Listen: listen},
@@ -257,7 +264,7 @@ func Run() {
 	cfg.ApplyDefaults()
 
 	// Reconfigure logger with user settings and daily log file
-	logDir := filepath.Join(rootDir, "logs")
+	logDir = filepath.Join(rootDir, "logs")
 	logger = authmw.SetupLogger(cfg.Observability.LogLevel, cfg.Observability.LogFormat, logDir)
 	slog.SetDefault(logger)
 
