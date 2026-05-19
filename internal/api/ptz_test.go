@@ -14,16 +14,17 @@ import (
 )
 
 func setupPTZTestDB(t *testing.T) (*storage.DB, *storage.Manager) {
-	t.Helper()
-	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "test.db")
-	db, err := storage.New(dbPath)
-	require.NoError(t, err)
-	ctx := context.Background()
-	require.NoError(t, db.Init(ctx))
-	store, err := storage.NewManager(filepath.Join(dir, "storage"))
-	require.NoError(t, err)
-	return db, store
+ t.Helper()
+ dir := t.TempDir()
+ dbPath := filepath.Join(dir, "test.db")
+ db, err := storage.New(dbPath)
+ require.NoError(t, err)
+ ctx := context.Background()
+ require.NoError(t, db.Init(ctx))
+ store, err := storage.NewManager(filepath.Join(dir, "storage"))
+ require.NoError(t, err)
+ t.Cleanup(func() { db.Close() })
+ return db, store
 }
 
 func TestPTZMoveEndpoint(t *testing.T) {
@@ -44,7 +45,7 @@ func TestPTZMoveEndpoint(t *testing.T) {
 	var resp map[string]string
 	err := json.NewDecoder(w.Body).Decode(&resp)
 	require.NoError(t, err)
-	require.Contains(t, resp["error"], "camera manager not available")
+	require.Contains(t, resp["error"], "设备管理器不可用")
 }
 
 func TestPTZMoveNonOnvifRejected(t *testing.T) {
@@ -109,7 +110,7 @@ func TestPTZStopEndpoint(t *testing.T) {
 	var resp map[string]string
 	err := json.NewDecoder(w.Body).Decode(&resp)
 	require.NoError(t, err)
-	require.Contains(t, resp["error"], "camera manager not available")
+	require.Contains(t, resp["error"], "设备管理器不可用")
 }
 
 func TestPTZStatusEndpoint(t *testing.T) {

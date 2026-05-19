@@ -6,6 +6,7 @@ import { onMount, onDestroy } from 'svelte';
     deleteRecording,
     batchDeleteRecordings
   } from '$lib/api';
+  import { isAdmin } from '$lib/api';
   import { getItemsPerPage, getAutoRefresh, parseRefreshInterval } from '../lib/preferences';
 
   import type { Recording, Camera } from '$lib/api';
@@ -424,6 +425,7 @@ import { onMount, onDestroy } from 'svelte';
                         <span class="hidden sm:inline">{t('recordings.view')}</span>
                         <Eye size={16} class="sm:hidden" />
                       </button>
+                      {#if isAdmin()}
                       <button
                         onclick={() => deleteConfirm = recording}
                         class="btn btn-ghost px-2 py-1.5 text-sm th-color-danger transition-all duration-200"
@@ -431,6 +433,7 @@ import { onMount, onDestroy } from 'svelte';
                       >
                         <Trash2 size={16} />
                       </button>
+                      {/if}
                     </div>
                   </td>
                 </tr>
@@ -463,7 +466,7 @@ import { onMount, onDestroy } from 'svelte';
   </div>
 
   <!-- Floating batch action bar -->
-  {#if selectedIds.size > 0}
+  {#if selectedIds.size > 0 && isAdmin()}
     <div class="floating-bar">
       <span class="text-sm font-medium th-text-primary">
         {t('recordings.selected', { count: String(selectedIds.size) })}

@@ -1,6 +1,6 @@
 # Go NVR Configuration
 # Copy to go-nvr.yaml and customize for your setup
-# Or use: ./go-nvr init --password <your-password>
+# Default admin user (admin/123456) is auto-created in the database on first run.
 
 server:
   listen: ":9090"
@@ -9,13 +9,7 @@ storage:
   root_dir: "/data"
   segment_duration: "30s"
 
-# Authentication
-# Option 1: Set password_hash (generate with: go-nvr hash-password <pw>)
-# Option 2: Set password in plaintext (auto-converted to hash on first run)
-auth:
-  username: "admin"
-  password_hash: ""  # Use `go-nvr hash-password <password>` to generate
-  # password: ""      # Or set plaintext here (auto-hashed on first start)
+
 
 # Camera configuration — add your cameras here
 cameras: []

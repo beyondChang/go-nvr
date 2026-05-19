@@ -174,6 +174,19 @@ func (d *DB) Init(ctx context.Context) error {
 	// Migration: normalize legacy protocol values + populate encoding
 	d.migrateEncodings()
 
+	// Users table
+	userSQL := `CREATE TABLE IF NOT EXISTS users (
+	       id TEXT PRIMARY KEY,
+	       username TEXT UNIQUE NOT NULL,
+	       password_hash TEXT NOT NULL,
+	       role TEXT NOT NULL DEFAULT 'viewer',
+	       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	   );`
+	if _, err := d.db.ExecContext(ctx, userSQL); err != nil {
+	 return err
+	}
+
 	return nil
 
 }
@@ -539,32 +552,42 @@ func (d *DB) ListOldestRecordings(ctx context.Context, limit int) ([]model.Recor
 }
 
 type CameraRow struct {
-	ID           string               `json:"id"`
-	Name         string               `json:"name"`
-Protocol     string               `json:"protocol"`
-Encoding       string               `json:"encoding"`
-	URL          string               `json:"url"`
-	Enabled      bool                 `json:"enabled"`
-	Description  string               `json:"description"`
-	Location     string               `json:"location"`
-	Brand        string               `json:"brand"`
-	Model        string               `json:"model"`
-	SerialNumber string               `json:"serial_number"`
-	RetentionDays int                 `json:"retention_days"`
-	Status       model.RecorderStatus `json:"status"`
-	LastSeen     *time.Time           `json:"last_seen,omitempty"`
-	Username    string               `json:"username"`
-	HasPassword bool                 `json:"has_password"`
-	// Per-camera merge config (nil = use global)
-	MergeEnabled         *bool   `json:"merge_enabled,omitempty"`
-	MergeCheckInterval   *string `json:"merge_check_interval,omitempty"`
-	MergeWindowSize      *string `json:"merge_window_size,omitempty"`
-	MergeBatchLimit      *int    `json:"merge_batch_limit,omitempty"`
-	MergeMinSegmentAge   *string `json:"merge_min_segment_age,omitempty"`
-	MergeMinSegmentsToMerge *int `json:"merge_min_segments_to_merge,omitempty"`
-	ONVIFEndpoint  string               `json:"onvif_endpoint"`
-	ProfileToken   string               `json:"profile_token"`
-	StreamEncoding string               `json:"stream_encoding"`
+ ID           string               `json:"id"`
+ Name         string               `json:"name"`
+ Protocol     string               `json:"protocol"`
+ Encoding       string               `json:"encoding"`
+ URL          string               `json:"url"`
+ Enabled      bool                 `json:"enabled"`
+ Description  string               `json:"description"`
+ Location     string               `json:"location"`
+ Brand        string               `json:"brand"`
+ Model        string               `json:"model"`
+ SerialNumber string               `json:"serial_number"`
+ RetentionDays int                 `json:"retention_days"`
+ Status       model.RecorderStatus `json:"status"`
+ LastSeen     *time.Time           `json:"last_seen,omitempty"`
+ Username    string               `json:"username"`
+ HasPassword bool                 `json:"has_password"`
+ // Per-camera merge config (nil = use global)
+ MergeEnabled         *bool   `json:"merge_enabled,omitempty"`
+ MergeCheckInterval   *string `json:"merge_check_interval,omitempty"`
+ MergeWindowSize      *string `json:"merge_window_size,omitempty"`
+ MergeBatchLimit      *int    `json:"merge_batch_limit,omitempty"`
+ MergeMinSegmentAge   *string `json:"merge_min_segment_age,omitempty"`
+ MergeMinSegmentsToMerge *int `json:"merge_min_segments_to_merge,omitempty"`
+ ONVIFEndpoint  string               `json:"onvif_endpoint"`
+ ProfileToken   string               `json:"profile_token"`
+ StreamEncoding string               `json:"stream_encoding"`
+}
+
+// UserRow represents a user in the database.
+type UserRow struct {
+ ID           string `json:"id"`
+ Username     string `json:"username"`
+ PasswordHash string `json:"-"`
+ Role         string `json:"role"`
+ CreatedAt    string `json:"created_at"`
+ UpdatedAt    string `json:"updated_at"`
 }
 
 
@@ -883,4 +906,85 @@ func ptrToNullInt64(v *int) sql.NullInt64 {
 		return sql.NullInt64{}
 	}
 	return sql.NullInt64{Valid: true, Int64: int64(*v)}
+}
+
+// --- User management ---
+
+// CreateUser inserts a new user into the database.
+func (d *DB) CreateUser(ctx context.Context, id, username, passwordHash, role string) error {
+	_, err := d.db.ExecContext(ctx,
+		`INSERT INTO users (id, username, password_hash, role, created_at, updated_at) VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`,
+		id, username, passwordHash, role)
+	return err
+}
+
+// GetUserByUsername looks up a user by username.
+func (d *DB) GetUserByUsername(ctx context.Context, username string) (*UserRow, error) {
+	row := d.db.QueryRowContext(ctx, `SELECT id, username, password_hash, role, created_at, updated_at FROM users WHERE username = ?`, username)
+	var u UserRow
+	if err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.CreatedAt, &u.UpdatedAt); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &u, nil
+}
+
+// GetUserByID looks up a user by ID.
+func (d *DB) GetUserByID(ctx context.Context, id string) (*UserRow, error) {
+	row := d.db.QueryRowContext(ctx, `SELECT id, username, password_hash, role, created_at, updated_at FROM users WHERE id = ?`, id)
+	var u UserRow
+	if err := row.Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.CreatedAt, &u.UpdatedAt); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &u, nil
+}
+
+// ListUsers returns all users (password_hash is excluded via json tag, but we still omit it here).
+func (d *DB) ListUsers(ctx context.Context) ([]UserRow, error) {
+	rows, err := d.db.QueryContext(ctx, `SELECT id, username, role, created_at, updated_at FROM users ORDER BY created_at ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var users []UserRow
+	for rows.Next() {
+		var u UserRow
+		if err := rows.Scan(&u.ID, &u.Username, &u.Role, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
+// UpdateUser updates user role and password hash (if non-empty).
+func (d *DB) UpdateUser(ctx context.Context, id, username, passwordHash, role string) error {
+	if passwordHash != "" {
+		_, err := d.db.ExecContext(ctx,
+			`UPDATE users SET username=?, password_hash=?, role=?, updated_at=datetime('now') WHERE id=?`,
+			username, passwordHash, role, id)
+		return err
+	}
+	_, err := d.db.ExecContext(ctx,
+		`UPDATE users SET username=?, role=?, updated_at=datetime('now') WHERE id=?`,
+		username, role, id)
+	return err
+}
+
+// DeleteUser deletes a user by ID.
+func (d *DB) DeleteUser(ctx context.Context, id string) error {
+	_, err := d.db.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, id)
+	return err
+}
+
+// CountUsers returns the total number of users.
+func (d *DB) CountUsers(ctx context.Context) (int, error) {
+	var count int
+	err := d.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&count)
+	return count, err
 }

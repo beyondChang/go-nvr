@@ -17,8 +17,7 @@ type Config struct {
 	Storage     StorageConfig     `yaml:"storage"`
 	Cameras     []CameraConfig    `yaml:"cameras"`
 	Cleanup     CleanupConfig     `yaml:"cleanup"`
-	Merge       MergeConfig        `yaml:"merge"`
-	Auth        AuthConfig        `yaml:"auth"`
+	Merge       MergeConfig       `yaml:"merge"`
 	FTP         FTPConfig         `yaml:"ftp"`
 	MQTT        MQTTConfig        `yaml:"mqtt"`
 	WebDAV      WebDAVConfig      `yaml:"webdav"`
@@ -68,13 +67,6 @@ type MergeConfig struct {
 	BatchLimit         int    `yaml:"batch_limit"`
 	MinSegmentAge      string `yaml:"min_segment_age"`
 	MinSegmentsToMerge int    `yaml:"min_segments_to_merge"`
-}
-
-type AuthConfig struct {
- Username            string `yaml:"username"`
- PasswordHash        string `yaml:"password_hash"`
- Password            string `yaml:"password"`
- ForcePasswordChange bool   `yaml:"force_password_change"`
 }
 
 type FTPConfig struct {
@@ -266,7 +258,6 @@ func (cfg *Config) applyDefaults() {
 	if cfg.Cleanup.DiskThresholdPercent == 0 {
 		cfg.Cleanup.DiskThresholdPercent = 95
 	}
-	// Auth - no defaults
 	// FTP
 	if cfg.FTP.Enabled == nil {
 		// set default to true only if not configured by user

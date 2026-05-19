@@ -68,17 +68,26 @@ func TestMalformedAuth(t *testing.T) {
     }
 }
 
-func TestEmptyHashBypass(t *testing.T) {
-	mw, _ := NewAuthMiddleware("user", "", "")
-	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	req := httptest.NewRequest("GET", "/", nil)
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200 when no password configured (setup mode), got %d", w.Code)
-	}
+func TestEmptyHashDefaultsToAdmin123456(t *testing.T) {
+ mw, _ := NewAuthMiddleware("", "", "")
+ handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+  w.WriteHeader(http.StatusOK)
+ }))
+ req := httptest.NewRequest("GET", "/", nil)
+ w := httptest.NewRecorder()
+ handler.ServeHTTP(w, req)
+ if w.Code != http.StatusUnauthorized {
+  t.Fatalf("expected 401 when no credentials sent, got %d", w.Code)
+ }
+
+ // With correct default credentials, should succeed
+ req2 := httptest.NewRequest("GET", "/", nil)
+ req2.SetBasicAuth("admin", "123456")
+ w2 := httptest.NewRecorder()
+ handler.ServeHTTP(w2, req2)
+ if w2.Code != http.StatusOK {
+  t.Fatalf("expected 200 with default admin/123456, got %d", w2.Code)
+ }
 }
 
 func TestHashCheckRoundTrip(t *testing.T) {

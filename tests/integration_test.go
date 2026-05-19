@@ -899,7 +899,7 @@ func TestMultiStreamHLS(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, rr.Code)
 	var errResp map[string]string
 	parseJSON(t, rr, &errResp)
-	require.Contains(t, errResp["error"], "HLS not available")
+	require.Contains(t, errResp["error"], "HLS功能不可用")
 
 	// 4. Insert MJPEG camera — same 500 (camMgr is nil, checked before protocol)
 	err = db.UpsertCamera(context.Background(), "cam-mjpeg", "MJPEG Camera", "rtsp_mjpeg", "",
@@ -1069,7 +1069,7 @@ func TestPTZLifecycle(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, rr.Code)
 	var errResp map[string]string
 	parseJSON(t, rr, &errResp)
-	require.Contains(t, errResp["error"], "camera manager not available")
+	require.Contains(t, errResp["error"], "设备管理器不可用")
 
 	// 4. PTZ stop with no camMgr → 500
 	rr = do(t, h.Routes(), "POST", "/api/cameras/cam-ptz/ptz/stop", nil)
@@ -1151,7 +1151,7 @@ func TestHLSWithONVIFCamera(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, rr.Code)
 	var errResp map[string]string
 	parseJSON(t, rr, &errResp)
-	require.Contains(t, errResp["error"], "HLS not available")
+	require.Contains(t, errResp["error"], "HLS功能不可用")
 
 	// 3. With camMgr but no recorder → 400
 	tmpDir := t.TempDir()

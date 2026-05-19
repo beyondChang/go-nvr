@@ -108,21 +108,27 @@ func (h *Handler) Routes() http.Handler {
 		r.Use(h.authMW)
 		r.Route("/api/recordings", func(r chi.Router) {
 			r.Get("/", h.handleListRecordings)
-			r.Post("/batch-delete", h.handleBatchDeleteRecordings)
+			r.With(h.requireAdmin).Post("/batch-delete", h.handleBatchDeleteRecordings)
 			r.Route("/{id}", func(r chi.Router) {
 				r.Get("/", h.handleGetRecording)
-				r.Delete("/", h.handleDeleteRecording)
+				r.With(h.requireAdmin).Delete("/", h.handleDeleteRecording)
 				r.Get("/download", h.handleDownloadRecording)
 				r.Get("/frames", h.handleListFrames)
 			})
 		})
 		r.Route("/api/cameras", func(r chi.Router) {
 			r.Get("/", h.handleListCameras)
-			r.Post("/", h.handleCreateCamera)
+			r.Group(func(r chi.Router) {
+				r.Use(h.requireAdmin)
+				r.Post("/", h.handleCreateCamera)
+			})
 			r.Route("/{id}", func(r chi.Router) {
 				r.Get("/", h.handleGetCamera)
-				r.Put("/", h.handleUpdateCamera)
-				r.Delete("/", h.handleDeleteCamera)
+				r.Group(func(r chi.Router) {
+					r.Use(h.requireAdmin)
+					r.Put("/", h.handleUpdateCamera)
+					r.Delete("/", h.handleDeleteCamera)
+				})
 			r.Get("/stream/*", h.handleHLSStream)
 			r.Delete("/stream", h.handleStopHLSStream)
 				r.Get("/onvif/profiles", h.handleONVIFCameraProfiles)
@@ -138,16 +144,24 @@ func (h *Handler) Routes() http.Handler {
 		r.Get("/api/stats/system", h.handleSystemStats)
 		r.Get("/api/stats/trends", h.handleStatsTrends)
 		r.Get("/api/settings", h.handleGetSettings)
-		r.Put("/api/settings", h.handleUpdateSettings)
-		r.Post("/api/auth/change-password", h.handleChangePassword)
+		r.With(h.requireAdmin).Put("/api/settings", h.handleUpdateSettings)
+		r.With(h.requireAdmin).Post("/api/auth/change-password", h.handleChangePassword)
 		r.Get("/api/settings/merge", h.handleGetMergeSettings)
-		r.Put("/api/settings/merge", h.handleUpdateMergeSettings)
-		r.Post("/api/backup", h.handleBackup)
+		r.With(h.requireAdmin).Put("/api/settings/merge", h.handleUpdateMergeSettings)
+		r.With(h.requireAdmin).Post("/api/backup", h.handleBackup)
 		r.Get("/api/backups", h.handleListBackups)
-		r.Post("/api/onvif/discover", h.handleONVIFDiscover)
+		r.With(h.requireAdmin).Post("/api/onvif/discover", h.handleONVIFDiscover)
 		r.Get("/api/onvif/discover/{ip}", h.handleONVIFDeviceDetail)
 		r.Get("/api/merge/status", h.handleMergeStatus)
 		r.Get("/api/merge/pending", h.handleMergePending)
+		// User management (admin only)
+		r.Route("/api/users", func(r chi.Router) {
+			r.Use(h.requireAdmin)
+			r.Get("/", h.handleListUsers)
+			r.Post("/", h.handleCreateUser)
+			r.Put("/{id}", h.handleUpdateUser)
+			r.Delete("/{id}", h.handleDeleteUser)
+		})
 	})
 
 	return r
@@ -286,32 +300,48 @@ func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
+	// Parse JSON body from SPA login form (username/password in POST body)
+	var body struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if r.Body != nil {
+		json.NewDecoder(r.Body).Decode(&body)
+	}
+	if body.Username != "" {
+		// Convert JSON credentials to Basic Auth for the middleware to validate
+		r.SetBasicAuth(body.Username, body.Password)
+	}
+
 	// Validate credentials by running through the auth middleware.
 	// If auth is disabled, any request succeeds; otherwise BasicAuth is checked.
-	done := make(chan int, 1)
+	done := make(chan *http.Request, 1)
 
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		done <- http.StatusOK
+		done <- r
 	})
-	rec := &middleware.StatusRecorder{ResponseWriter: w, Status: http.StatusUnauthorized}
+	rec := &middleware.StatusRecorder{ResponseWriter: w, Status: http.StatusOK}
 	h.authMW(inner).ServeHTTP(rec, r)
 
 	select {
-	case status := <-done:
-		if status == http.StatusOK {
+	case req := <-done:
+		if rec.Status == http.StatusOK {
 			forcePasswordChange := false
-			if h.config != nil {
-				forcePasswordChange = h.config.Auth.ForcePasswordChange
+			// Role is set in request context by the auth middleware (from DB user's role)
+			role := middleware.GetRole(req)
+			if role == "" {
+				role = "admin"
 			}
 			writeJSON(w, http.StatusOK, map[string]any{
 				"status":               "ok",
 				"force_password_change": forcePasswordChange,
+				"role":                 role,
 			})
 		}
 	default:
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"error": "未授权"})
+		json.NewEncoder(w).Encode(map[string]string{"error": "用户名或密码错误"})
 	}
 }
 
@@ -338,12 +368,26 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.config.Auth.PasswordHash == "" {
-		writeError(w, http.StatusForbidden, "未设置密码，无法修改")
+	if h.db == nil {
+		writeError(w, http.StatusInternalServerError, "数据库不可用")
 		return
 	}
 
-	if !middleware.CheckPassword(body.OldPassword, h.config.Auth.PasswordHash) {
+	// Get current user from request context (set by auth middleware)
+	username := middleware.GetUsername(r)
+	if username == "" {
+		writeError(w, http.StatusUnauthorized, "未登录")
+		return
+	}
+
+	// Look up the user in the database
+	dbUser, err := h.db.GetUserByUsername(r.Context(), username)
+	if err != nil || dbUser == nil {
+		writeError(w, http.StatusForbidden, "用户不存在")
+		return
+	}
+
+	if !middleware.CheckPassword(body.OldPassword, dbUser.PasswordHash) {
 		writeError(w, http.StatusForbidden, "旧密码错误")
 		return
 	}
@@ -354,14 +398,11 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update config
-	h.config.Auth.PasswordHash = hash
-	h.config.Auth.Password = ""
-	h.config.Auth.ForcePasswordChange = false
-
-	// Persist to disk
-	if err := config.Save(h.configPath, h.config); err != nil {
-		logger.Warn("failed to save config after password change", "error", err)
+	// Update password in the database
+	if err := h.db.UpdateUser(r.Context(), dbUser.ID, dbUser.Username, hash, dbUser.Role); err != nil {
+		logger.Warn("failed to update password in db", "error", err)
+		writeError(w, http.StatusInternalServerError, "密码更新失败")
+		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -1372,7 +1413,21 @@ func TestHandler(db *storage.DB, store *storage.Manager) *Handler {
 // TestHandlerWithAuth creates a Handler with real auth middleware for testing.
 func TestHandlerWithAuth(db *storage.DB, store *storage.Manager, username, passwordHash string) *Handler {
 	authMW, _ := middleware.NewAuthMiddleware(username, passwordHash, "")
-	return NewHandler(db, store, authMW, &config.Config{}, nil, nil, "", nil)
+	return NewHandler(db, store, authMW, nil, nil, nil, "", nil)
+}
+
+// requireAdmin is a middleware that rejects non-admin users.
+func (h *Handler) requireAdmin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Check role from request context (set by NewAuthMiddlewareWithDB)
+		role := middleware.GetRole(r)
+		// When role is empty (backward compat for tests), allow through
+		if role == "" || role == "admin" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		writeError(w, http.StatusForbidden, "无权限，仅管理员可执行此操作")
+	})
 }
 
 // --- HLS streaming endpoints ---
@@ -1584,10 +1639,6 @@ func (h *Handler) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 			"enabled":     h.config.WebDAV.Enabled != nil && *h.config.WebDAV.Enabled,
 			"path_prefix": h.config.WebDAV.PathPrefix,
 			"read_write":  h.config.WebDAV.ReadWrite,
-		},
-		"auth": map[string]any{
-			"username":        h.config.Auth.Username,
-			"auth_configured": h.config.Auth.PasswordHash != "" || h.config.Auth.Password != "",
 		},
 	})
 }
@@ -1898,6 +1949,163 @@ func (h *Handler) handleListBackups(w http.ResponseWriter, r *http.Request) {
 		backups = []string{}
 	}
 	writeJSON(w, http.StatusOK, backups)
+}
+
+// --- User Management ---
+
+func (h *Handler) handleListUsers(w http.ResponseWriter, r *http.Request) {
+	if h.db == nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "数据库不可用"})
+		return
+	}
+	users, err := h.db.ListUsers(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "获取用户列表失败")
+		return
+	}
+	writeJSON(w, http.StatusOK, users)
+}
+
+func (h *Handler) handleCreateUser(w http.ResponseWriter, r *http.Request) {
+	if h.db == nil {
+		writeError(w, http.StatusInternalServerError, "数据库不可用")
+		return
+	}
+	var body struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+		Role     string `json:"role"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "无效的请求体")
+		return
+	}
+	if body.Username == "" {
+		writeError(w, http.StatusBadRequest, "用户名不能为空")
+		return
+	}
+	if body.Password == "" || len(body.Password) < 6 {
+		writeError(w, http.StatusBadRequest, "密码至少需要 6 个字符")
+		return
+	}
+	if body.Role != "admin" && body.Role != "viewer" {
+		body.Role = "viewer"
+	}
+
+	// Check if username already exists
+	existing, err := h.db.GetUserByUsername(r.Context(), body.Username)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "检查用户失败")
+		return
+	}
+	if existing != nil {
+		writeError(w, http.StatusConflict, "用户名已存在")
+		return
+	}
+
+	hash, err := middleware.HashPassword(body.Password)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "密码加密失败")
+		return
+	}
+
+	id := fmt.Sprintf("user_%d", time.Now().UnixNano())
+	if err := h.db.CreateUser(r.Context(), id, body.Username, hash, body.Role); err != nil {
+		writeError(w, http.StatusInternalServerError, "创建用户失败")
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]string{"status": "ok", "id": id})
+}
+
+func (h *Handler) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
+	if h.db == nil {
+		writeError(w, http.StatusInternalServerError, "数据库不可用")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "缺少用户 ID")
+		return
+	}
+
+	var body struct {
+		Username string `json:"username"`
+		Password string `json:"password,omitempty"`
+		Role     string `json:"role"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "无效的请求体")
+		return
+	}
+	if body.Username == "" {
+		writeError(w, http.StatusBadRequest, "用户名不能为空")
+		return
+	}
+	if body.Role != "admin" && body.Role != "viewer" {
+		writeError(w, http.StatusBadRequest, "无效的角色")
+		return
+	}
+
+	passwordHash := ""
+	if body.Password != "" {
+		if len(body.Password) < 6 {
+			writeError(w, http.StatusBadRequest, "密码至少需要 6 个字符")
+			return
+		}
+		var err error
+		passwordHash, err = middleware.HashPassword(body.Password)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "密码加密失败")
+			return
+		}
+	}
+
+	if err := h.db.UpdateUser(r.Context(), id, body.Username, passwordHash, body.Role); err != nil {
+		writeError(w, http.StatusInternalServerError, "更新用户失败")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
+	if h.db == nil {
+		writeError(w, http.StatusInternalServerError, "数据库不可用")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "缺少用户 ID")
+		return
+	}
+
+	// Prevent deleting admin users
+	target, err := h.db.GetUserByID(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "查询用户失败")
+		return
+	}
+	if target != nil && target.Role == "admin" {
+		writeError(w, http.StatusForbidden, "不能删除管理员用户")
+		return
+	}
+
+	// Prevent deleting yourself
+	currentUser := middleware.GetUsername(r)
+	if currentUser != "" {
+		// Get user's ID by username to compare
+		user, err := h.db.GetUserByUsername(r.Context(), currentUser)
+		if err == nil && user != nil && user.ID == id {
+			writeError(w, http.StatusForbidden, "不能删除当前用户")
+			return
+		}
+	}
+
+	if err := h.db.DeleteUser(r.Context(), id); err != nil {
+		writeError(w, http.StatusInternalServerError, "删除用户失败")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // formatUptime converts a duration to a human-readable string like "2h 15m 30s".

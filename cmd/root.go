@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"flag"
 	"fmt"
@@ -46,23 +45,15 @@ var appVersion = "0.1.0-dev" // overridden via -ldflags at build time
 func autoInitConfig(configPath string) *config.Config {
 	dataDir := "data"
 
-	// Check for initial password from env var
-	password := os.Getenv("NVR_PASSWORD")
-
 	cfg := &config.Config{
-	 Server:        config.ServerConfig{Listen: ":9090"},
-	 Storage:       config.StorageConfig{RootDir: dataDir, SegmentDuration: "30s"},
-	 Auth:          config.AuthConfig{Username: "admin", Password: "123456", ForcePasswordChange: true},
-	 Cameras:       []config.CameraConfig{},
-	 Cleanup:       config.CleanupConfig{RetentionDays: 30, CheckInterval: "1h", DiskThresholdPercent: 95},
-	 FTP:           config.FTPConfig{Port: 2121, PassivePortRange: "2122-2140"},
-	 WebDAV:        config.WebDAVConfig{PathPrefix: "/dav"},
-	 Observability: config.ObservabilityConfig{LogLevel: "info", LogFormat: "text"},
-	 Version:       "1.0",
-	}
-
-	if password != "" {
-		cfg.Auth.Password = password
+		Server:        config.ServerConfig{Listen: ":9090"},
+		Storage:       config.StorageConfig{RootDir: dataDir, SegmentDuration: "30s"},
+		Cameras:       []config.CameraConfig{},
+		Cleanup:       config.CleanupConfig{RetentionDays: 30, CheckInterval: "1h", DiskThresholdPercent: 95},
+		FTP:           config.FTPConfig{Port: 2121, PassivePortRange: "2122-2140"},
+		WebDAV:        config.WebDAVConfig{PathPrefix: "/dav"},
+		Observability: config.ObservabilityConfig{LogLevel: "info", LogFormat: "text"},
+		Version:       "1.0",
 	}
 
 	// Create data directory if needed
@@ -82,9 +73,6 @@ func autoInitConfig(configPath string) *config.Config {
 		slog.Warn("failed to save auto-generated config", "path", configPath, "error", err)
 	} else {
 		slog.Info("auto-generated default config", "path", configPath, "data_dir", dataDir)
-		if password == "" {
-			slog.Warn("using default password '123456', please change it via Web UI after first login")
-		}
 	}
 
 	return cfg
@@ -130,15 +118,10 @@ func Run() {
 
 	// Handle init subcommand
 	if len(os.Args) > 1 && os.Args[1] == "init" {
-		var password, dataDir, listenAddr, configPath, username string
+		var dataDir, listenAddr, configPath string
 		var force bool
 		for i := 2; i < len(os.Args); i++ {
 			switch os.Args[i] {
-			case "--password":
-				i++
-				if i < len(os.Args) {
-					password = os.Args[i]
-				}
 			case "--data-dir":
 				i++
 				if i < len(os.Args) {
@@ -154,11 +137,6 @@ func Run() {
 				if i < len(os.Args) {
 					configPath = os.Args[i]
 				}
-			case "--username":
-				i++
-				if i < len(os.Args) {
-					username = os.Args[i]
-				}
 			case "--force":
 				force = true
 			}
@@ -172,23 +150,6 @@ func Run() {
 		if configPath == "" {
 			configPath = "go-nvr.yaml"
 		}
-		if username == "" {
-			username = "admin"
-		}
-		if password == "" {
-			stat, _ := os.Stdin.Stat()
-			if (stat.Mode() & os.ModeCharDevice) != 0 {
-				fmt.Print("Enter password: ")
-				scanner := bufio.NewScanner(os.Stdin)
-				if scanner.Scan() {
-					password = scanner.Text()
-				}
-			}
-			if password == "" {
-				fmt.Fprintln(os.Stderr, "Error: password is required (use --password or provide via terminal)")
-				os.Exit(1)
-			}
-		}
 		if _, err := os.Stat(configPath); err == nil && !force {
 			fmt.Fprintf(os.Stderr, "Error: config file %s already exists (use --force to overwrite)\n", configPath)
 			os.Exit(2)
@@ -197,15 +158,9 @@ func Run() {
 			fmt.Fprintf(os.Stderr, "Error creating data directory: %v\n", err)
 			os.Exit(1)
 		}
-		hash, err := authmw.HashPassword(password)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error hashing password: %v\n", err)
-			os.Exit(1)
-		}
 		cfg := config.Config{
 			Server:        config.ServerConfig{Listen: listenAddr},
 			Storage:       config.StorageConfig{RootDir: dataDir, SegmentDuration: "30s"},
-			Auth:          config.AuthConfig{Username: username, PasswordHash: hash},
 			Cameras:       []config.CameraConfig{},
 			Cleanup:       config.CleanupConfig{RetentionDays: 30, CheckInterval: "1h", DiskThresholdPercent: 95},
 			FTP:           config.FTPConfig{Port: 2121, PassivePortRange: "2122-2140"},
@@ -289,6 +244,22 @@ func Run() {
 		os.Exit(1)
 	}
 
+	// Ensure admin user exists in the database (default: admin/123456)
+	existingAdmin, err := db.GetUserByUsername(ctx, "admin")
+	if err != nil {
+		slog.Warn("check admin user in db", "error", err)
+	}
+	if existingAdmin == nil {
+		hash, hashErr := authmw.HashPassword("123456")
+		if hashErr == nil {
+			if createErr := db.CreateUser(ctx, "admin_admin", "admin", hash, "admin"); createErr != nil {
+				slog.Warn("create admin user in db", "error", createErr)
+			} else {
+				slog.Info("created admin user in database", "username", "admin")
+			}
+		}
+	}
+
 	// Init storage manager
 	m := metrics.NewMetrics()
 	store, err := storage.NewManager(cfg.Storage.RootDir, m)
@@ -305,16 +276,8 @@ func Run() {
 		slog.Warn("incomplete cleanup", "error", err)
 	}
 
-	// Auth middleware
-	authMW, effectiveHash := authmw.NewAuthMiddleware(cfg.Auth.Username, cfg.Auth.PasswordHash, cfg.Auth.Password)
-	if effectiveHash != "" && cfg.Auth.PasswordHash == "" && cfg.Auth.Password != "" {
-		slog.Info("persisting auto-hashed password to config", "component", "main")
-		cfg.Auth.PasswordHash = effectiveHash
-		cfg.Auth.Password = ""
-		if err := config.Save(*configPath, cfg); err != nil {
-			slog.Error("failed to save config after auto-hash", "error", err)
-		}
-	}
+	// Auth middleware — authenticates against the database users table
+	authMW := authmw.NewAuthMiddlewareWithDB(db)
 
 	// Camera manager
 	camMgr := camera.NewCameraManager(cfg, store, db, *configPath, m)
@@ -437,7 +400,7 @@ func Run() {
 	// FTP
 	if cfg.FTP.Enabled != nil && *cfg.FTP.Enabled {
 		ftpAddr := fmt.Sprintf(":%d", cfg.FTP.Port)
-		ftpSrv := ftp.NewServer(ftpAddr, cfg.FTP.PassivePortRange, cfg.Auth.Username, cfg.Auth.Password, store, db)
+		ftpSrv := ftp.NewServer(ftpAddr, cfg.FTP.PassivePortRange, "admin", "123456", store, db)
 		go func() {
 			if err := ftpSrv.Start(ctx); err != nil {
 				slog.Error("ftp", "error", err)

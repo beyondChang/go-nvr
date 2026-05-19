@@ -9,6 +9,7 @@ import {
   loadRecordingVideoBlob,
   listRecordings
 } from '$lib/api';
+  import { isAdmin } from '$lib/api';
   import type { Recording, FrameInfo } from '$lib/api';
   import { formatDate, formatDuration, formatFileSize } from '$lib/format';
   import { showToast } from '$lib/toast';
@@ -729,6 +730,7 @@ if (nextBlobUrl) URL.revokeObjectURL(nextBlobUrl);
                 </button>
               {/if}
             </div>
+            {#if isAdmin()}
             <div class="flex gap-3 ml-auto">
               <button
                 onclick={() => deleteConfirm = true}
@@ -737,6 +739,7 @@ if (nextBlobUrl) URL.revokeObjectURL(nextBlobUrl);
                 {t('detail.delete')}
               </button>
             </div>
+            {/if}
         </div>
         </div>
       </div>

@@ -1,21 +1,22 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { t } from '$lib/i18n';
-  import { logout } from '$lib/api';
   import { getEffectiveTheme } from '$lib/preferences';
-  import LanguageSwitcher from './LanguageSwitcher.svelte';
+  import { isAdmin, isAuthenticated } from '$lib/api';
   import ThemeToggle from './ThemeToggle.svelte';
-  import { ArrowLeft, Menu, LogOut } from 'lucide-svelte';
+  import { ArrowLeft, Menu, Settings as SettingsIcon } from 'lucide-svelte';
 
   // Props
   let {
     activeRoute = '',
     showBack = false,
-    backLabel = ''
+    backLabel = '',
+    onsettingsclick
   }: {
     activeRoute?: string;
     showBack?: boolean;
     backLabel?: string;
+    onsettingsclick?: () => void;
   } = $props();
 
 
@@ -60,7 +61,6 @@
     { href: '#/recordings', labelKey: 'nav.recordings', route: '/recordings' },
     { href: '#/cameras', labelKey: 'nav.cameras', route: '/cameras' },
     { href: '#/stats', labelKey: 'nav.stats', route: '/stats' },
-    { href: '#/settings', labelKey: 'nav.settings', route: '/settings' },
   ];
 
   function isActive(route: string): boolean {
@@ -129,11 +129,11 @@
     
     <div class="navbar-right">
       <ThemeToggle />
-      <LanguageSwitcher />
-      <button class="btn btn-ghost logout-btn" onclick={logout}>
-        <LogOut size={20} />
-        <span>{t('nav.logout')}</span>
-      </button>
+      {#if isAuthenticated()}
+        <button class="btn btn-ghost settings-btn" onclick={onsettingsclick} aria-label={t('nav.settings')}>
+          <SettingsIcon size={20} />
+        </button>
+      {/if}
     </div>
   </div>
 </header>
@@ -208,7 +208,7 @@
     letter-spacing: -0.025em;
     text-decoration: none;
     white-space: nowrap;
-    background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 40%, #38bdf8 100%);
+    background: linear-gradient(135deg, #C862D9 0%, #D98AE6 40%, #38bdf8 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -250,7 +250,7 @@
   .nav-link.active {
     color: #ffffff;
     background: var(--gradient-primary);
-    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+    box-shadow: 0 2px 8px rgba(200, 98, 217, 0.3);
     position: relative;
   }
 
@@ -271,29 +271,17 @@
     gap: 0.5rem;
   }
 
-  .logout-btn {
+  .settings-btn {
     display: inline-flex;
     align-items: center;
-    gap: 0.375rem;
     padding: 0.375rem 0.625rem;
     border-radius: var(--radius-sm);
     transition: all var(--duration-fast) var(--ease-out);
   }
 
-  .logout-btn:hover {
-    background-color: rgba(239, 68, 68, 0.1);
-    color: var(--color-danger);
-  }
-
-  .logout-icon {
-    width: 1.125rem;
-    height: 1.125rem;
-  }
-
-  @media (max-width: 639px) {
-    .logout-btn span {
-      display: none;
-    }
+  .settings-btn:hover {
+    background-color: var(--bg-tertiary);
+    color: var(--color-primary);
   }
   
   /* Hamburger Button */
@@ -379,7 +367,7 @@
     background: var(--gradient-primary);
     color: #ffffff;
     border-left-color: transparent;
-    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+    box-shadow: 0 2px 8px rgba(200, 98, 217, 0.3);
   }
   
 </style>

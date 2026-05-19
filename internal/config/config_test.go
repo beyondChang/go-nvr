@@ -101,7 +101,6 @@ func TestSave(t *testing.T) {
             URL: "rtsp://192.168.1.10/stream", Username: "admin", Password: "secret", Enabled: true,
         }},
         Cleanup: CleanupConfig{RetentionDays: 7, CheckInterval: "30m", DiskThresholdPercent: 80},
-        Auth:    AuthConfig{Username: "admin", PasswordHash: "$2a$10$xxx"},
         FTP:     FTPConfig{Enabled: &ftpEnabled, Port: 2121, PassivePortRange: "3000-3010"},
         MQTT:    MQTTConfig{Enabled: true, Broker: "tcp://mqtt.local:1883", Topic: "nvr/trigger", ClientID: "mibee"},
         WebDAV:  WebDAVConfig{Enabled: &webdavEnabled, PathPrefix: "/files"},
@@ -127,8 +126,6 @@ func TestSave(t *testing.T) {
     require.Equal(t, 7, loaded.Cleanup.RetentionDays)
     require.Equal(t, "30m", loaded.Cleanup.CheckInterval)
     require.Equal(t, 80, loaded.Cleanup.DiskThresholdPercent)
-    require.Equal(t, "admin", loaded.Auth.Username)
-    require.Equal(t, "$2a$10$xxx", loaded.Auth.PasswordHash)
     require.Equal(t, 2121, loaded.FTP.Port)
     require.Equal(t, "3000-3010", loaded.FTP.PassivePortRange)
     require.True(t, *loaded.FTP.Enabled)

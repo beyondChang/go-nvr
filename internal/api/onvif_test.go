@@ -56,7 +56,7 @@ func TestONVIFDiscoverTimeoutTooLarge(t *testing.T) {
 	var resp map[string]string
 	err := json.NewDecoder(w.Body).Decode(&resp)
 	require.NoError(t, err)
-	require.Contains(t, resp["error"], "timeout")
+	require.Contains(t, resp["error"], "超时")
 }
 
 func TestONVIFDiscoverNegativeTimeout(t *testing.T) {
@@ -85,7 +85,7 @@ func TestONVIFDeviceDetailEndpoint(t *testing.T) {
 	var resp map[string]string
 	err := json.NewDecoder(w.Body).Decode(&resp)
 	require.NoError(t, err)
-	require.Contains(t, resp["error"], "failed to connect")
+	require.Contains(t, resp["error"], "连接设备失败")
 }
 
 func TestONVIFDeviceDetail_MissingIP(t *testing.T) {

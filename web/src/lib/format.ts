@@ -1,12 +1,10 @@
-import { state } from './i18n';
-
 /**
- * Format a date string in a locale-aware manner.
+ * Format utility functions — 固定中文格式
  */
+
 export function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
-  const lang = state.currentLang === 'zh' ? 'zh-CN' : 'en-US';
-  return date.toLocaleString(lang, {
+  return date.toLocaleString('zh-CN', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -17,27 +15,20 @@ export function formatDate(dateStr: string): string {
 
 /**
  * Format a duration in seconds to a human-readable string.
- * en: "1h 30m 15s" | zh: "1时 30分 15秒"
+ * e.g. "1时 30分 15秒"
  */
 export function formatDuration(seconds: number): string {
   const hrs = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
-  const isZh = state.currentLang === 'zh';
   
   if (hrs > 0) {
-    return isZh
-      ? `${hrs}时 ${mins}分 ${secs}秒`
-      : `${hrs}h ${mins}m ${secs}s`;
+    return `${hrs}时 ${mins}分 ${secs}秒`;
   }
   if (mins > 0) {
-    return isZh
-      ? `${mins}分 ${secs}秒`
-      : `${mins}m ${secs}s`;
+    return `${mins}分 ${secs}秒`;
   }
-  return isZh
-    ? `${secs}秒`
-    : `${secs}s`;
+  return `${secs}秒`;
 }
 
 /**

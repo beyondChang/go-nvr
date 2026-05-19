@@ -32,7 +32,7 @@ func TestInitCreatesConfigAndDataDir(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "test-config.yaml")
 	dataDir := filepath.Join(tmpDir, "data")
 
-	cmd := exec.Command(binPath, "init", "--password", "testpass123", "--data-dir", dataDir, "--config", configPath)
+	cmd := exec.Command(binPath, "init", "--data-dir", dataDir, "--config", configPath)
 	output, err := cmd.CombinedOutput()
 	require.NoError(t, err, "init failed: %s", string(output))
 
@@ -41,8 +41,7 @@ func TestInitCreatesConfigAndDataDir(t *testing.T) {
 
 	cfg, err := config.Load(configPath)
 	require.NoError(t, err)
-	require.NotEmpty(t, cfg.Auth.PasswordHash, "config should have password_hash, not plaintext")
-	require.Empty(t, cfg.Auth.Password, "plaintext password field should be empty in saved config")
+	require.Equal(t, ":9090", cfg.Server.Listen)
 }
 
 func TestInitRejectsExistingConfig(t *testing.T) {
@@ -54,7 +53,7 @@ func TestInitRejectsExistingConfig(t *testing.T) {
 	err := os.WriteFile(configPath, []byte("existing: true"), 0644)
 	require.NoError(t, err)
 
-	cmd := exec.Command(binPath, "init", "--password", "testpass123", "--data-dir", dataDir, "--config", configPath)
+	cmd := exec.Command(binPath, "init", "--data-dir", dataDir, "--config", configPath)
 	output, err := cmd.CombinedOutput()
 	require.Error(t, err, "init should fail when config already exists")
 	require.Contains(t, string(output), "already exists")

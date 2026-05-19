@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { isAuthenticated } from '$lib/api';
+  import { isAuthenticated, isAdmin } from '$lib/api';
   import Login from './routes/Login.svelte';
   import Recordings from './routes/Recordings.svelte';
   import RecordingDetail from './routes/RecordingDetail.svelte';
@@ -57,10 +57,6 @@
       return { route: 'stats', params: {} };
     }
 
-    if (segments[0] === 'settings') {
-      return { route: 'settings', params: {} };
-    }
-
     if (segments[0] === 'dashboard') {
       return { route: 'dashboard', params: {} };
     }
@@ -72,8 +68,9 @@
   // Current route — initialize from hash synchronously to prevent
   // Login component from redirecting to recordings before onMount runs
   const initialRoute = typeof window !== 'undefined' ? parseRoute(window.location.hash) : { route: 'login', params: {} };
-  let currentRoute = initialRoute.route;
-  let params: Record<string, string> = initialRoute.params;
+  let currentRoute = $state(initialRoute.route);
+  let params: Record<string, string> = $state(initialRoute.params);
+  let settingsOpen = $state(false);
 
 
   function updateRoute() {
@@ -97,7 +94,7 @@
 {#if currentRoute === 'login'}
     <Login />
   {:else}
-    <Header showBack={currentRoute === 'recording-detail' || currentRoute === 'live'} />
+    <Header showBack={currentRoute === 'recording-detail' || currentRoute === 'live'} onsettingsclick={() => settingsOpen = true} />
     {#if currentRoute === 'recordings'}
       <Recordings />
     {:else if currentRoute === 'recording-detail'}
@@ -110,11 +107,13 @@
       <LiveView cameraId={params.id} />
     {:else if currentRoute === 'stats'}
       <Stats />
-    {:else if currentRoute === 'settings'}
-      <Settings />
     {:else if currentRoute === 'dashboard'}
       <Dashboard />
     {/if}
+  {/if}
+
+  {#if settingsOpen}
+    <Settings onclose={() => settingsOpen = false} />
   {/if}
 
 <Toast />

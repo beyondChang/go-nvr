@@ -41,6 +41,8 @@ func setupTestDB(t *testing.T) (*storage.DB, *storage.Manager) {
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
+	// Register cleanup in LIFO order: stoppers first, then db close last
+	t.Cleanup(func() { db.Close() })
 	return db, store
 }
 
@@ -1526,6 +1528,7 @@ func newTestCamHandler(t *testing.T) (*Handler, *camera.CameraManager, *config.C
 		Cameras: []config.CameraConfig{},
 	}
 	camMgr := camera.NewCameraManager(cfg, store, db, "")
+	t.Cleanup(func() { camMgr.Stop() })
 	h := NewHandler(db, store, noopAuthMW(), cfg, camMgr, nil, "", nil)
 	return h, camMgr, cfg
 }
@@ -1559,9 +1562,9 @@ func TestHandleCreateCamera_MissingFields(t *testing.T) {
 		body    string
 		wantErr string
 	}{
-		{"missing name", `{"protocol":"rtsp_h264","url":"rtsp://x"}`, "name is required"},
-		{"missing url", `{"name":"Cam","protocol":"rtsp_h264"}`, "url is required"},
-		{"missing protocol", `{"name":"Cam","url":"rtsp://x"}`, "protocol is required"},
+		{"missing name", `{"protocol":"rtsp_h264","url":"rtsp://x"}`, "名称必填"},
+		{"missing url", `{"name":"Cam","protocol":"rtsp_h264"}`, "URL必填"},
+		{"missing protocol", `{"name":"Cam","url":"rtsp://x"}`, "协议必填"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1588,7 +1591,7 @@ func TestHandleCreateCamera_InvalidProtocol(t *testing.T) {
 	}
 	var resp map[string]string
 	parseJSON(t, rr, &resp)
-	if !strings.Contains(resp["error"], "invalid protocol") {
+	if !strings.Contains(resp["error"], "无效的协议") {
 		t.Fatalf("expected invalid protocol error, got %q", resp["error"])
 	}
 }
@@ -1805,7 +1808,7 @@ func TestHandleSnapshot_NoURL(t *testing.T) {
 
 	rr := doRequest(t, h.Routes(), "GET", "/api/cameras/cam-1/snapshot", nil, "", "")
 	require.Equal(t, http.StatusNotFound, rr.Code)
-	require.Contains(t, rr.Body.String(), "Snapshot URL not configured")
+	require.Contains(t, rr.Body.String(), "未配置快照URL")
 }
 
 func TestHandleSnapshot_CameraNotFound(t *testing.T) {
@@ -2274,7 +2277,7 @@ func TestHandleHLSStream_NilHLSManager(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, rr.Code)
 	var resp map[string]string
 	parseJSON(t, rr, &resp)
-	require.Equal(t, "HLS not available", resp["error"])
+	require.Equal(t, "HLS功能不可用", resp["error"])
 }
 
 func TestHandleStopHLSStream_NilHLSManager(t *testing.T) {

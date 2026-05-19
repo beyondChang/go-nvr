@@ -133,6 +133,7 @@ export interface RecordingListResponse {
 export interface LoginResponse {
   status: string;
   force_password_change?: boolean;
+  role?: string;
 }
 
 export interface ApiError {
@@ -198,11 +199,27 @@ export function getCredentials(): AuthCredentials | null {
 // Clear credentials
 export function clearCredentials(): void {
   localStorage.removeItem(AUTH_KEY);
+  localStorage.removeItem(ROLE_KEY);
 }
 
 // Check if user is authenticated
 export function isAuthenticated(): boolean {
   return getCredentials() !== null;
+}
+
+// Role storage
+const ROLE_KEY = 'mibee_nvr_role';
+
+export function storeRole(role: string): void {
+  localStorage.setItem(ROLE_KEY, role);
+}
+
+export function getRole(): string | null {
+  return localStorage.getItem(ROLE_KEY);
+}
+
+export function isAdmin(): boolean {
+  return getRole() === 'admin';
 }
 
 // Get Basic Auth header value
@@ -283,8 +300,11 @@ export async function login(username: string, password: string): Promise<LoginRe
 
   const data = await response.json();
 
-  // Store credentials on success
+  // Store credentials and role on success
   storeCredentials(username, password);
+  if (data.role) {
+    storeRole(data.role);
+  }
 
   return data as LoginResponse;
 }
@@ -297,14 +317,10 @@ export function logout(): void {
 
 // Change password
 export async function changePassword(oldPassword: string, newPassword: string): Promise<void> {
-  const response = await apiRequest('/auth/change-password', {
+  await apiRequest('/auth/change-password', {
     method: 'POST',
     body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
   });
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ error: 'Failed to change password' }));
-    throw new Error((errorData as ApiError).error || 'Failed to change password');
-  }
 }
 export async function listRecordings(params: {
   camera_id?: string;
@@ -630,4 +646,41 @@ export async function getMergeStatus(): Promise<MergeStatus> {
 
 export async function getMergePending(): Promise<MergePending> {
   return apiRequest<MergePending>('/merge/pending');
+}
+
+// User management interfaces
+export interface User {
+  id: string;
+  username: string;
+  role: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateUserRequest {
+  username: string;
+  password: string;
+  role: string;
+}
+
+export interface UpdateUserRequest {
+  username: string;
+  password?: string;
+  role: string;
+}
+
+export async function listUsers(): Promise<User[]> {
+  return apiRequest<User[]>('/users');
+}
+
+export async function createUser(data: CreateUserRequest): Promise<{ status: string; id: string }> {
+  return apiRequest('/users', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export async function updateUser(id: string, data: UpdateUserRequest): Promise<{ status: string }> {
+  return apiRequest(`/users/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+
+export async function deleteUser(id: string): Promise<{ status: string }> {
+  return apiRequest(`/users/${id}`, { method: 'DELETE' });
 }

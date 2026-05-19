@@ -1,7 +1,6 @@
 <script lang="ts">
   import { login, changePassword, isAuthenticated } from '$lib/api';
   import ThemeToggle from '../components/ThemeToggle.svelte';
-  import LanguageSwitcher from '../components/LanguageSwitcher.svelte';
   import { t } from '$lib/i18n';
   import { Eye, EyeOff } from 'lucide-svelte';
   import type { LoginResponse } from '$lib/api';
@@ -9,7 +8,7 @@
   let username = '';
   let password = '';
   let showPassword = false;
-  let error = '';
+  let error = $state('');
   let loginErrors = $state({ username: '', password: '' });
   let loading = false;
 
@@ -109,7 +108,6 @@
 <div class="min-h-screen flex items-center justify-center th-bg-primary px-4">
   <div class="fixed top-4 right-4 flex items-center gap-2 z-50">
     <ThemeToggle />
-    <LanguageSwitcher />
   </div>
 
   <div class="card w-full max-w-md p-10 border th-border shadow-2xl">

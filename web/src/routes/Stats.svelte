@@ -47,7 +47,7 @@
   let lastCameraTotals: Record<string, number> = {};
   let allCameraNames = $state<string[]>([]);
   const BAR_COLORS = [
-    'rgba(139, 92, 246, 0.7)',
+    'rgba(200, 98, 217, 0.7)',
     'rgba(56, 189, 248, 0.7)',
     'rgba(16, 185, 129, 0.7)',
     'rgba(245, 158, 11, 0.7)',
@@ -191,8 +191,8 @@
     const isDark = getEffectiveTheme() === 'dark';
     const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
     const textColor = isDark ? '#a1a1a1' : '#4b5563';
-    const accentColor = 'rgba(139, 92, 246, 0.8)';
-    const accentFill = 'rgba(139, 92, 246, 0.1)';
+    const accentColor = 'rgba(200, 98, 217, 0.8)';
+    const accentFill = 'rgba(200, 98, 217, 0.1)';
 
     const labels = trends.map(d => d.date.slice(5)); // "MM-DD"
     const rawSizes = trends.map(d => d.total_size);

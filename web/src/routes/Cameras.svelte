@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { listCameras, createCamera, updateCamera, deleteCamera, discoverONVIFDevices, getMergeConfig, updateMergeConfig, deleteCameraMergeConfig, getONVIFDeviceDetail } from '$lib/api';
+  import { isAdmin } from '$lib/api';
   import type { Camera, CreateCameraRequest, UpdateCameraRequest, DiscoveredDevice, DeviceProfile, MergeConfig } from '$lib/api';
   import { t } from '$lib/i18n';
   import { Eye, EyeOff, Pencil, Camera as CameraIcon, AlertCircle } from 'lucide-svelte';
@@ -368,6 +369,7 @@
     <div class="flex items-center justify-between mb-6">
       <h2 class="text-2xl font-bold th-text-primary">{t('cameras.title')}</h2>
       <div class="flex gap-3">
+        {#if isAdmin()}
         <button on:click={scanONVIF} class="btn btn-ghost" disabled={scanning}>
           {#if scanning}
             <span class="spinner mr-2"></span>{t('onvif.discovering')}
@@ -378,6 +380,7 @@
         <button on:click={openAddForm} class="btn btn-primary">
           + {t('cameras.addCamera')}
         </button>
+        {/if}
       </div>
     </div>
 
@@ -459,6 +462,7 @@
                         <div class="text-xs th-text-muted mt-0.5">{device.hardware}</div>
                       {/if}
                     </div>
+                    {#if isAdmin()}
                     <button
                       on:click={() => addDiscoveredDevice(device)}
                       class="btn btn-primary btn-sm shrink-0"
@@ -469,6 +473,7 @@
                       {/if}
                       {t('onvif.addCamera')}
                     </button>
+                    {/if}
                   </div>
                 {/each}
               </div>
@@ -819,7 +824,9 @@
               </div>
               <h3 class="text-lg font-medium th-text-primary mb-2">{t('cameras.noCameras')}</h3>
               <p class="text-sm th-text-muted mb-4">{t('cameras.noCamerasHint')}</p>
+              {#if isAdmin()}
               <button on:click={openAddForm} class="btn btn-primary btn-sm">+ {t('cameras.addCamera')}</button>
+              {/if}
             </div>
           {:else}
             <div class="overflow-x-auto">
@@ -882,6 +889,7 @@
                               {t('cameras.live')}
                             </a>
                           {/if}
+                          {#if isAdmin()}
                           <button
                             on:click={() => openEditForm(camera)}
                             class="btn btn-ghost px-2 py-1 text-sm transition-all duration-200"
@@ -890,6 +898,7 @@
                             on:click={() => deletingCamera = camera}
                             class="btn btn-ghost px-2 py-1 text-sm th-color-danger transition-all duration-200"
                           >{t('cameras.delete')}</button>
+                          {/if}
                         </div>
                       </td>
                     </tr>
