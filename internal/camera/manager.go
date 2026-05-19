@@ -39,29 +39,27 @@ type CameraUpdate struct {
 }
 
 type CameraManager struct {
-	cfg        *config.Config
-	store      *storage.Manager
-	db         *storage.DB
-	configPath string
-	recorders  map[string]model.Recorder // camera_id → Recorder
-	metrics    *metrics.Metrics
-	mu         sync.RWMutex
+ cfg       *config.Config
+ store     *storage.Manager
+ db        *storage.DB
+ recorders map[string]model.Recorder // camera_id → Recorder
+ metrics   *metrics.Metrics
+ mu        sync.RWMutex
 }
 
 // NewCameraManager creates a new CameraManager.
-func NewCameraManager(cfg *config.Config, store *storage.Manager, db *storage.DB, configPath string, opts ...*metrics.Metrics) *CameraManager {
-	var m *metrics.Metrics
-	if len(opts) > 0 {
-		m = opts[0]
-	}
-	return &CameraManager{
-		cfg:        cfg,
-		store:      store,
-		db:         db,
-		configPath: configPath,
-		recorders:  make(map[string]model.Recorder),
-		metrics:    m,
-	}
+func NewCameraManager(cfg *config.Config, store *storage.Manager, db *storage.DB, opts ...*metrics.Metrics) *CameraManager {
+ var m *metrics.Metrics
+ if len(opts) > 0 {
+  m = opts[0]
+ }
+ return &CameraManager{
+  cfg:       cfg,
+  store:     store,
+  db:        db,
+  recorders: make(map[string]model.Recorder),
+  metrics:   m,
+ }
 }
 
 // createRecorder creates a recorder for the given camera config.
@@ -156,16 +154,6 @@ func (cm *CameraManager) startRecorder(ctx context.Context, cam config.CameraCon
 		cm.metrics.ActiveCameras.Inc()
 	}
 	logger.Info("started recorder for camera", "camera_id", cam.ID)
-	return nil
-}
-
-// persistConfig saves the current config to disk if configPath is set.
-func (cm *CameraManager) persistConfig() error {
-	if cm.configPath != "" {
-		if err := config.Save(cm.configPath, cm.cfg); err != nil {
-			return fmt.Errorf("camera manager: failed to save config: %w", err)
-		}
-	}
 	return nil
 }
 
@@ -325,10 +313,7 @@ func (cm *CameraManager) AddCamera(ctx context.Context, cam config.CameraConfig)
 		}
 	}
 
-	// Persist config to disk
-	if err := cm.persistConfig(); err != nil {
-		logger.Error("failed to persist config", "error", err)
-	}
+
 
 	return cam.ID, nil
 }
@@ -365,10 +350,7 @@ func (cm *CameraManager) RemoveCamera(ctx context.Context, cameraID string) erro
 	// Remove from config slice
 	cm.cfg.Cameras = append(cm.cfg.Cameras[:idx], cm.cfg.Cameras[idx+1:]...)
 
-	// Persist config to disk
-	if err := cm.persistConfig(); err != nil {
-		logger.Error("failed to persist config", "error", err)
-	}
+
 
 	return nil
 }
@@ -508,10 +490,7 @@ func (cm *CameraManager) UpdateCamera(ctx context.Context, cameraID string, upda
 		}
 	}
 
-	// Persist config to disk
-	if err := cm.persistConfig(); err != nil {
-		logger.Error("failed to persist config", "error", err)
-	}
+
 
 	return cam, nil
 }

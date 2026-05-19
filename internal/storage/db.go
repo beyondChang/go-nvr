@@ -7,7 +7,9 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+
 	_ "modernc.org/sqlite"
+
 	"github.com/beyondChang/go-nvr/internal/model"
 )
 
@@ -18,7 +20,6 @@ type DB struct {
 	db   *sql.DB
 }
 
-// DB returns the underlying *sql.DB for advanced queries.
 func (d *DB) DB() *sql.DB {
 	return d.db
 }
@@ -185,6 +186,15 @@ func (d *DB) Init(ctx context.Context) error {
 	   );`
 	if _, err := d.db.ExecContext(ctx, userSQL); err != nil {
 	 return err
+	}
+
+	// App settings table
+	settingsSQL := `CREATE TABLE IF NOT EXISTS app_settings (
+		key TEXT PRIMARY KEY,
+		value TEXT NOT NULL
+	);`
+	if _, err := d.db.ExecContext(ctx, settingsSQL); err != nil {
+		return err
 	}
 
 	return nil
@@ -987,4 +997,41 @@ func (d *DB) CountUsers(ctx context.Context) (int, error) {
 	var count int
 	err := d.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&count)
 	return count, err
+}
+
+// GetSetting returns a setting value from app_settings by key.
+// Returns empty string if key doesn't exist.
+func (d *DB) GetSetting(ctx context.Context, key string) (string, error) {
+	var value string
+	err := d.db.QueryRowContext(ctx, "SELECT value FROM app_settings WHERE key=?", key).Scan(&value)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return value, err
+}
+
+// SetSetting sets a setting value in app_settings.
+func (d *DB) SetSetting(ctx context.Context, key, value string) error {
+	_, err := d.db.ExecContext(ctx,
+		"INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+		key, value)
+	return err
+}
+
+// GetAllSettings returns all app_settings as a map.
+func (d *DB) GetAllSettings(ctx context.Context) (map[string]string, error) {
+	rows, err := d.db.QueryContext(ctx, "SELECT key, value FROM app_settings")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make(map[string]string)
+	for rows.Next() {
+		var k, v string
+		if err := rows.Scan(&k, &v); err != nil {
+			return nil, err
+		}
+		result[k] = v
+	}
+	return result, rows.Err()
 }

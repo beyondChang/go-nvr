@@ -10,6 +10,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -36,71 +38,41 @@ import (
 )
 
 var (
-	configPath = flag.String("config", "go-nvr.yaml", "path to configuration file")
+	listenAddr = flag.String("port", ":9090", "listen address (e.g. :9090 or 0.0.0.0:9090)")
+	dataDir    = flag.String("data", "data", "data directory path")
 	version    = flag.Bool("version", false, "print version and exit")
 )
 
 var appVersion = "0.1.0-dev" // overridden via -ldflags at build time
 
-func autoInitConfig(configPath string) *config.Config {
-	dataDir := "data"
-
-	cfg := &config.Config{
-		Server:        config.ServerConfig{Listen: ":9090"},
-		Storage:       config.StorageConfig{RootDir: dataDir, SegmentDuration: "30s"},
-		Cameras:       []config.CameraConfig{},
-		Cleanup:       config.CleanupConfig{RetentionDays: 30, CheckInterval: "1h", DiskThresholdPercent: 95},
-		FTP:           config.FTPConfig{Port: 2121, PassivePortRange: "2122-2140"},
-		WebDAV:        config.WebDAVConfig{PathPrefix: "/dav"},
-		Observability: config.ObservabilityConfig{LogLevel: "info", LogFormat: "text"},
-		Version:       "1.0",
+// parseListenAddr normalises a port-or-address flag:
+//
+//	"--port 9090"       → ":9090"
+//	"--port :9090"      → ":9090"
+//	"--port 0.0.0.0:9090" → "0.0.0.0:9090"
+func parseListenAddr(v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return ":9090"
 	}
-
-	// Create data directory if needed
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
-		slog.Warn("failed to create data directory", "dir", dataDir, "error", err)
+	if !strings.Contains(v, ":") {
+		return ":" + v
 	}
-
-	// Create config directory if needed
-	configDir := filepath.Dir(configPath)
-	if configDir != "." && configDir != "/" {
-		if err := os.MkdirAll(configDir, 0755); err != nil {
-			slog.Warn("failed to create config directory", "dir", configDir, "error", err)
-		}
+	if v[0] != ':' {
+		// already "host:port"
+		return v
 	}
-
-	if err := config.Save(configPath, cfg); err != nil {
-		slog.Warn("failed to save auto-generated config", "path", configPath, "error", err)
-	} else {
-		slog.Info("auto-generated default config", "path", configPath, "data_dir", dataDir)
-	}
-
-	return cfg
+	return v
 }
 
 func Run() {
-	// Handle health subcommand
+	// Handle health subcommand: go-nvr health [--addr :9090]
 	if len(os.Args) > 1 && os.Args[1] == "health" {
 		addr := ":9090"
 		for i := 2; i < len(os.Args); i++ {
-			switch os.Args[i] {
-			case "--addr":
+			if os.Args[i] == "--addr" && i+1 < len(os.Args) {
 				i++
-				if i < len(os.Args) {
-					addr = os.Args[i]
-				}
-			case "--config":
-				i++
-				if i < len(os.Args) {
-					cfg, err := config.Load(os.Args[i])
-					if err != nil {
-						fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-						os.Exit(1)
-					}
-					if cfg.Server.Listen != "" {
-						addr = cfg.Server.Listen
-					}
-				}
+				addr = parseListenAddr(os.Args[i])
 			}
 		}
 		resp, err := http.Get("http://localhost" + addr + "/api/health")
@@ -116,72 +88,43 @@ func Run() {
 		os.Exit(0)
 	}
 
-	// Handle init subcommand
+	// Handle init subcommand: go-nvr init [--data-dir data] [--port :9090]
 	if len(os.Args) > 1 && os.Args[1] == "init" {
-		var dataDir, listenAddr, configPath string
-		var force bool
+		var initDataDir, initListen string
 		for i := 2; i < len(os.Args); i++ {
 			switch os.Args[i] {
 			case "--data-dir":
 				i++
 				if i < len(os.Args) {
-					dataDir = os.Args[i]
+					initDataDir = os.Args[i]
 				}
-			case "--listen":
+			case "--port":
 				i++
 				if i < len(os.Args) {
-					listenAddr = os.Args[i]
+					initListen = parseListenAddr(os.Args[i])
 				}
-			case "--config":
-				i++
-				if i < len(os.Args) {
-					configPath = os.Args[i]
-				}
-			case "--force":
-				force = true
 			}
 		}
-		if dataDir == "" {
-			dataDir = "data"
+		if initDataDir == "" {
+			initDataDir = "data"
 		}
-		if listenAddr == "" {
-			listenAddr = ":9090"
+		if initListen == "" {
+			initListen = ":9090"
 		}
-		if configPath == "" {
-			configPath = "go-nvr.yaml"
-		}
-		if _, err := os.Stat(configPath); err == nil && !force {
-			fmt.Fprintf(os.Stderr, "Error: config file %s already exists (use --force to overwrite)\n", configPath)
-			os.Exit(2)
-		}
-		if err := os.MkdirAll(dataDir, 0755); err != nil {
+		if err := os.MkdirAll(initDataDir, 0755); err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating data directory: %v\n", err)
 			os.Exit(1)
 		}
-		cfg := config.Config{
-			Server:        config.ServerConfig{Listen: listenAddr},
-			Storage:       config.StorageConfig{RootDir: dataDir, SegmentDuration: "30s"},
-			Cameras:       []config.CameraConfig{},
-			Cleanup:       config.CleanupConfig{RetentionDays: 30, CheckInterval: "1h", DiskThresholdPercent: 95},
-			FTP:           config.FTPConfig{Port: 2121, PassivePortRange: "2122-2140"},
-			WebDAV:        config.WebDAVConfig{PathPrefix: "/dav"},
-			Observability: config.ObservabilityConfig{LogLevel: "info", LogFormat: "text"},
-			Version:       "1.0",
-		}
-		if err := config.Save(configPath, &cfg); err != nil {
-			fmt.Fprintf(os.Stderr, "Error saving config: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("Configuration saved to %s\n", configPath)
-		fmt.Printf("Data directory: %s\n", dataDir)
+		fmt.Printf("Data directory: %s\n", initDataDir)
+		fmt.Printf("Listen address: %s\n", initListen)
 		fmt.Println("\nNext steps:")
-		fmt.Printf("  1. Edit %s to add your cameras\n", configPath)
-		fmt.Printf("  2. Run: ./go-nvr -config %s\n", configPath)
-		fmt.Printf("  3. Open http://localhost%s in your browser\n", listenAddr)
+		fmt.Printf("  1. Start: %s --port %s --data %s\n", os.Args[0], initListen, initDataDir)
+		fmt.Printf("  2. Open http://localhost%s in your browser\n", initListen)
+		fmt.Printf("  3. Log in with username: admin, password: 123456\n")
 		os.Exit(0)
 	}
 
-	// Handle hash-password subcommand
+	// Handle hash-password subcommand: go-nvr hash-password <password>
 	if len(os.Args) > 1 && os.Args[1] == "hash-password" {
 		if len(os.Args) < 3 {
 			fmt.Fprintln(os.Stderr, "Usage: go-nvr hash-password <password>")
@@ -196,7 +139,7 @@ func Run() {
 		os.Exit(0)
 	}
 
-	// Setup initial logger before config load
+	// Setup initial logger before any config
 	logger := authmw.SetupLogger("info", "text")
 	slog.SetDefault(logger)
 
@@ -207,28 +150,31 @@ func Run() {
 		os.Exit(0)
 	}
 
-	// Load and validate config
-	cfg, err := config.Load(*configPath)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			slog.Error("config", "error", err)
-			os.Exit(1)
-		}
-		// Auto-initialize: config file not found, generate defaults
-		slog.Info("config file not found, auto-initializing with defaults", "path", *configPath)
-		cfg = autoInitConfig(*configPath)
-	}
-	if err := config.Validate(cfg); err != nil {
-		slog.Error("config validation", "error", err)
-		os.Exit(1)
+	// Resolve listen address from flag
+	listen := parseListenAddr(*listenAddr)
+
+	// Resolve data directory — if relative, make it relative to working dir
+	rootDir := *dataDir
+
+	// Build the config object from flags + defaults
+	cfg := &config.Config{
+		Server:  config.ServerConfig{Listen: listen},
+		Storage: config.StorageConfig{RootDir: rootDir, SegmentDuration: "30s"},
+		Cameras: []config.CameraConfig{},
+		Cleanup: config.CleanupConfig{RetentionDays: 30, CheckInterval: "1h", DiskThresholdPercent: 95},
+		FTP:     config.FTPConfig{Port: 2121, PassivePortRange: "2122-2140"},
+		WebDAV:  config.WebDAVConfig{PathPrefix: "/dav"},
+		Observability: config.ObservabilityConfig{LogLevel: "info", LogFormat: "text"},
+		Version: appVersion,
 	}
 
-	// Reconfigure logger with user settings after config load
-	logger = authmw.SetupLogger(cfg.Observability.LogLevel, cfg.Observability.LogFormat)
-	slog.SetDefault(logger)
+	// Create data directory if needed
+	if err := os.MkdirAll(rootDir, 0755); err != nil {
+		slog.Warn("failed to create data directory", "dir", rootDir, "error", err)
+	}
 
 	// Init database
-	dbPath := filepath.Join(cfg.Storage.RootDir, "go-nvr.db")
+	dbPath := filepath.Join(rootDir, "go-nvr.db")
 	db, err := storage.New(dbPath)
 	if err != nil {
 		slog.Error("db", "error", err)
@@ -243,6 +189,76 @@ func Run() {
 		slog.Error("db init", "error", err)
 		os.Exit(1)
 	}
+
+	// Load settings from DB and merge into config
+	settings, err := db.GetAllSettings(ctx)
+	if err != nil {
+		slog.Warn("load settings from db", "error", err)
+	}
+	if settings != nil {
+		// Cleanup settings
+		if v, ok := settings["cleanup.retention_days"]; ok {
+			if n, e := strconv.Atoi(v); e == nil {
+				cfg.Cleanup.RetentionDays = n
+			}
+		}
+		if v, ok := settings["cleanup.disk_threshold_percent"]; ok {
+			if n, e := strconv.Atoi(v); e == nil {
+				cfg.Cleanup.DiskThresholdPercent = n
+			}
+		}
+		if v, ok := settings["cleanup.check_interval"]; ok {
+			cfg.Cleanup.CheckInterval = v
+		}
+		// WebDAV settings
+		if v, ok := settings["webdav.enabled"]; ok {
+			b, e := strconv.ParseBool(v)
+			if e == nil {
+				cfg.WebDAV.Enabled = &b
+			}
+		}
+		if v, ok := settings["webdav.path_prefix"]; ok {
+			cfg.WebDAV.PathPrefix = v
+		}
+		if v, ok := settings["webdav.read_write"]; ok {
+			b, e := strconv.ParseBool(v)
+			if e == nil {
+				cfg.WebDAV.ReadWrite = b
+			}
+		}
+		// Merge settings
+		if v, ok := settings["merge.enabled"]; ok {
+			b, e := strconv.ParseBool(v)
+			if e == nil {
+				cfg.Merge.Enabled = b
+			}
+		}
+		if v, ok := settings["merge.check_interval"]; ok {
+			cfg.Merge.CheckInterval = v
+		}
+		if v, ok := settings["merge.window_size"]; ok {
+			cfg.Merge.WindowSize = v
+		}
+		if v, ok := settings["merge.batch_limit"]; ok {
+			if n, e := strconv.Atoi(v); e == nil {
+				cfg.Merge.BatchLimit = n
+			}
+		}
+		if v, ok := settings["merge.min_segment_age"]; ok {
+			cfg.Merge.MinSegmentAge = v
+		}
+		if v, ok := settings["merge.min_segments_to_merge"]; ok {
+			if n, e := strconv.Atoi(v); e == nil {
+				cfg.Merge.MinSegmentsToMerge = n
+			}
+		}
+	}
+
+	cfg.ApplyDefaults()
+
+	// Reconfigure logger with user settings after loading DB settings
+	logger = authmw.SetupLogger(cfg.Observability.LogLevel, cfg.Observability.LogFormat)
+	slog.SetDefault(logger)
 
 	// Ensure admin user exists in the database (default: admin/123456)
 	existingAdmin, err := db.GetUserByUsername(ctx, "admin")
@@ -280,7 +296,7 @@ func Run() {
 	authMW := authmw.NewAuthMiddlewareWithDB(db)
 
 	// Camera manager
-	camMgr := camera.NewCameraManager(cfg, store, db, *configPath, m)
+	camMgr := camera.NewCameraManager(cfg, store, db, m)
 
 	// HLS manager
 	hlsDataDir := filepath.Join(cfg.Storage.RootDir, "hls")
@@ -301,9 +317,8 @@ func Run() {
 		func() []config.CameraConfig { return cfg.Cameras },
 	)
 
-	// API handler — Routes() already includes /api prefix
-	// API handler — Routes() already includes /api prefix
-	handler := api.NewHandler(db, store, authMW, cfg, camMgr, hlsMgr, *configPath, mergeMgr)
+	// API handler
+	handler := api.NewHandler(db, store, authMW, cfg, camMgr, hlsMgr, mergeMgr)
 
 	// WebDAV
 	var davHandler http.Handler
@@ -328,8 +343,6 @@ func Run() {
 	r.Use(authmw.RequestLogger(slog.Default(), "/api/health", "/api/readyz", "/metrics"))
 	r.Use(middleware.Recoverer)
 	r.Use(authmw.SecurityHeaders)
-
-	// API routes (handler.Routes() already includes /api prefix)
 
 	// Prometheus metrics (public, no auth)
 	r.Handle("/metrics", promhttp.HandlerFor(m.Registry, promhttp.HandlerOpts{ErrorHandling: promhttp.ContinueOnError}))
@@ -358,9 +371,6 @@ func Run() {
 		os.Exit(1)
 	}
 	fileServer := http.FileServer(http.FS(staticContent))
-	// Wrap static file server with authentication middleware
-	// Static files served without auth — SPA handles login flow client-side.
-	// All sensitive data is protected via API endpoints in handler.Routes().
 	r.NotFound(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fileServer.ServeHTTP(w, r)
 	}))

@@ -1,241 +1,100 @@
 package config
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
-	"time"
-
-	"gopkg.in/yaml.v3"
 
 	"github.com/beyondChang/go-nvr/internal/model"
 )
 
 type Config struct {
-	Server      ServerConfig      `yaml:"server"`
-	Storage     StorageConfig     `yaml:"storage"`
-	Cameras     []CameraConfig    `yaml:"cameras"`
-	Cleanup     CleanupConfig     `yaml:"cleanup"`
-	Merge       MergeConfig       `yaml:"merge"`
-	FTP         FTPConfig         `yaml:"ftp"`
-	MQTT        MQTTConfig        `yaml:"mqtt"`
-	WebDAV      WebDAVConfig      `yaml:"webdav"`
-	HLS         HLSConfig         `yaml:"hls"`
-	Observability ObservabilityConfig `yaml:"observability"`
-	Version     string            `yaml:"version"`
+	Server        ServerConfig
+	Storage       StorageConfig
+	Cameras       []CameraConfig
+	Cleanup       CleanupConfig
+	Merge         MergeConfig
+	FTP           FTPConfig
+	MQTT          MQTTConfig
+	WebDAV        WebDAVConfig
+	HLS           HLSConfig
+	Observability ObservabilityConfig
+	Version       string
 }
 
 type ServerConfig struct {
-	Listen string `yaml:"listen"` // default ":9090"
+	Listen string // default ":9090"
 }
 
 type StorageConfig struct {
-	RootDir         string `yaml:"root_dir"`        // default "/mnt/data/nvr"
-	SegmentDuration string `yaml:"segment_duration"` // default "30s"
+	RootDir         string // default "/mnt/data/nvr"
+	SegmentDuration string // default "30s"
 }
 
 type CameraConfig struct {
-	ID       string `yaml:"id"`
-	Name     string `yaml:"name"`
-	Protocol string `yaml:"protocol"` // rtsp_h264, rtsp_mjpeg, http_jpeg
-	Encoding       string `yaml:"encoding"` // h264, h265, mjpeg, jpeg (independent of protocol)
-	URL      string `yaml:"url"`
-	Username string `yaml:"username"`
-	Password string `yaml:"password"`
-	ONVIFEndpoint  string `yaml:"onvif_endpoint"`
-	ProfileToken   string `yaml:"profile_token"`
-	StreamEncoding string `yaml:"stream_encoding"` // H264 or H265, for ONVIF cameras. Empty = auto-detect.
-	Enabled  bool   `yaml:"enabled"`
-	SubStreamURL   string `yaml:"sub_stream_url"`
-	SnapshotURL    string `yaml:"snapshot_url"`
-	SampleInterval int    `yaml:"sample_interval"`
-	HLSMaxFPS      int    `yaml:"hls_max_fps"`
-	Merge         *MergeConfig `yaml:"merge"`
+	ID       string
+	Name     string
+	Protocol string // rtsp, http, onvif
+	Encoding       string // h264, h265, mjpeg, jpeg
+	URL      string
+	Username string
+	Password string
+	ONVIFEndpoint  string
+	ProfileToken   string
+	StreamEncoding string // H264 or H265, for ONVIF cameras. Empty = auto-detect.
+	Enabled  bool
+	SubStreamURL   string
+	SnapshotURL    string
+	SampleInterval int
+	HLSMaxFPS      int
+	Merge         *MergeConfig
 }
 
 type CleanupConfig struct {
-	RetentionDays       int    `yaml:"retention_days"`        // default 30
-	CheckInterval       string `yaml:"check_interval"`         // default "1h"
-	DiskThresholdPercent int   `yaml:"disk_threshold_percent"` // default 95
+	RetentionDays       int    // default 30
+	CheckInterval       string // default "1h"
+	DiskThresholdPercent int   // default 95
 }
 
 type MergeConfig struct {
-	Enabled            bool   `yaml:"enabled"`
-	CheckInterval      string `yaml:"check_interval"`
-	WindowSize         string `yaml:"window_size"`
-	BatchLimit         int    `yaml:"batch_limit"`
-	MinSegmentAge      string `yaml:"min_segment_age"`
-	MinSegmentsToMerge int    `yaml:"min_segments_to_merge"`
+	Enabled            bool   // default false
+	CheckInterval      string // default "1h"
+	WindowSize         string // default "1h"
+	BatchLimit         int    // default 200
+	MinSegmentAge      string // default "10m"
+	MinSegmentsToMerge int    // default 3
 }
 
 type FTPConfig struct {
-	Enabled          *bool  `yaml:"enabled"`           // default true
-	Port             int    `yaml:"port"`              // default 2121
-	PassivePortRange string `yaml:"passive_port_range"` // default "2122-2140"
+	Enabled          *bool  // default true
+	Port             int    // default 2121
+	PassivePortRange string // default "2122-2140"
 }
 
 type MQTTConfig struct {
-	Enabled  bool   `yaml:"enabled"`   // default false
-	Broker   string `yaml:"broker"`
-	Topic    string `yaml:"topic"`
-	ClientID string `yaml:"client_id"`
+	Enabled  bool   // default false
+	Broker   string
+	Topic    string
+	ClientID string
 }
 
 type WebDAVConfig struct {
-	Enabled    *bool  `yaml:"enabled"`     // default true
-	PathPrefix string `yaml:"path_prefix"` // default "/dav"
-	ReadWrite  bool   `yaml:"read_write"`  // default false
+	Enabled    *bool  // default true
+	PathPrefix string // default "/dav"
+	ReadWrite  bool   // default false
 }
-
 
 // ObservabilityConfig defines observability settings
 type ObservabilityConfig struct {
-	LogLevel     string `yaml:"log_level"`     // default "info"
-	LogFormat    string `yaml:"log_format"`    // default "text"
-	EnablePprof  bool   `yaml:"enable_pprof"`  // default false
+	LogLevel     string // default "info"
+	LogFormat    string // default "text"
+	EnablePprof  bool   // default false
 }
 
 type HLSConfig struct {
-	WriteBufferSize  int `yaml:"write_buffer_size"`   // async frame buffer per stream (default 40)
-	SegmentMaxSizeMB int `yaml:"segment_max_size_mb"` // HLS segment max size in MB (default 10)
+	WriteBufferSize  int // async frame buffer per stream (default 40)
+	SegmentMaxSizeMB int // HLS segment max size in MB (default 10)
 }
 
-// Load reads a YAML config file and returns a Config with defaults applied.
-func Load(path string) (*Config, error) {
-	if path == "" {
-		return nil, fmt.Errorf("必须提供配置文件路径")
-	}
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	var cfg Config
-	if err := yaml.Unmarshal(b, &cfg); err != nil {
-		return nil, err
-	}
-	// apply defaults
-	cfg.applyDefaults()
-	return &cfg, nil
-}
-
-// Save writes the Config to path as YAML using atomic write (temp file + rename).
-func Save(path string, cfg *Config) error {
-	if path == "" {
-		return fmt.Errorf("必须提供配置文件路径")
-	}
-	if cfg == nil {
-		return fmt.Errorf("配置为空")
-	}
-	data, err := yaml.Marshal(cfg)
-	if err != nil {
-		return fmt.Errorf("序列化配置失败: %w", err)
-	}
-	// Temp file in same directory to ensure same filesystem for rename.
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".go-nvr.yaml.tmp")
-	if err != nil {
-		return fmt.Errorf("创建临时文件失败: %w", err)
-	}
-	tmpPath := tmp.Name()
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		os.Remove(tmpPath)
-		return fmt.Errorf("写入临时文件失败: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("关闭临时文件失败: %w", err)
-	}
-	if err := os.Rename(tmpPath, path); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("重命名临时文件失败: %w", err)
-	}
-	return nil
-}
-
-// Validate ensures required fields and basic constraints.
-func Validate(cfg *Config) error {
-	if cfg == nil {
-		return fmt.Errorf("配置为空")
-	}
-	// cameras must have id and url
-	for i, c := range cfg.Cameras {
-		if strings.TrimSpace(c.ID) == "" {
-			return fmt.Errorf("设备[%d].id 必填", i)
-		}
-		if strings.TrimSpace(c.URL) == "" && c.Protocol != "onvif" {
-			return fmt.Errorf("设备[%d].url 必填", i)
-		}
-		if (c.Protocol == "onvif" || c.Protocol == string(model.ProtoONVIF)) && strings.TrimSpace(c.ONVIFEndpoint) == "" && strings.TrimSpace(c.URL) == "" {
-			return fmt.Errorf("设备[%d]: ONVIF设备需要提供 url 或 onvif_endpoint", i)
-		}
-		// Auto-populate: if url is set but onvif_endpoint is empty, copy url to onvif_endpoint
-		if (c.Protocol == "onvif" || c.Protocol == string(model.ProtoONVIF)) && strings.TrimSpace(c.ONVIFEndpoint) == "" && strings.TrimSpace(c.URL) != "" {
-			c.ONVIFEndpoint = c.URL
-		}
-		// Accept both old combined format and new separate format
-		proto := c.Protocol
-		enc := c.Encoding
-		if strings.Contains(proto, "_") {
-			// Old combined format like "rtsp_h264" — parse and validate
-			parsedProto, parsedEnc, err := model.ParseLegacyProtocol(proto)
-			if err != nil {
-				return fmt.Errorf("设备[%d].protocol 无效: %s", i, proto)
-			}
-			proto = parsedProto
-			enc = parsedEnc
-		}
-		if err := model.ValidateProtocolEncoding(proto, enc); err != nil {
-			return fmt.Errorf("设备[%d].%w", i, err)
-		}
-	}
-	// port ranges
-	if cfg.FTP.Port < 0 || cfg.FTP.Port > 65535 {
-		return fmt.Errorf("FTP端口超出范围: %d", cfg.FTP.Port)
-	}
-	// Validate segment_duration
-	if dur, err := time.ParseDuration(cfg.Storage.SegmentDuration); err != nil {
-		return fmt.Errorf("存储分段时长无效: %w", err)
-	} else if dur > 5*time.Minute {
-		return fmt.Errorf("存储分段时长必须在 <= 5m，当前值: %s", cfg.Storage.SegmentDuration)
-	}
-	// Validate retention_days
-	if cfg.Cleanup.RetentionDays < 1 || cfg.Cleanup.RetentionDays > 3650 {
-		return fmt.Errorf("清理保留天数必须在1到3650之间，当前值: %d", cfg.Cleanup.RetentionDays)
-	}
-	// Validate disk_threshold_percent
-	if cfg.Cleanup.DiskThresholdPercent < 50 || cfg.Cleanup.DiskThresholdPercent > 99 {
-		return fmt.Errorf("清理磁盘阈值百分比必须在50到99之间，当前值: %d", cfg.Cleanup.DiskThresholdPercent)
-	}
-	// Validate observability.log_level
-	if cfg.Observability.LogLevel != "debug" && cfg.Observability.LogLevel != "info" && cfg.Observability.LogLevel != "warn" && cfg.Observability.LogLevel != "error" {
-		return fmt.Errorf("日志级别无效: %s（必须为 debug/info/warn/error）", cfg.Observability.LogLevel)
-	}
-	// Validate observability.log_format
-	if cfg.Observability.LogFormat != "json" && cfg.Observability.LogFormat != "text" {
-		return fmt.Errorf("日志格式无效: %s（必须为 json/text）", cfg.Observability.LogFormat)
-	}
-	if cfg.Merge.Enabled {
-		if _, err := time.ParseDuration(cfg.Merge.CheckInterval); err != nil {
-			return fmt.Errorf("合并检查间隔无效: %w", err)
-		}
-		if _, err := time.ParseDuration(cfg.Merge.WindowSize); err != nil {
-			return fmt.Errorf("合并时间窗口无效: %w", err)
-		}
-		if cfg.Merge.BatchLimit <= 0 {
-			return fmt.Errorf("合并批处理限制必须为正数")
-		}
-		if _, err := time.ParseDuration(cfg.Merge.MinSegmentAge); err != nil {
-			return fmt.Errorf("合并分段最小时长无效: %w", err)
-		}
-		if cfg.Merge.MinSegmentsToMerge < 2 {
-			return fmt.Errorf("合并参数 min_segments_to_merge 必须至少为2")
-		}
-	}
-	return nil
-}
-
-func (cfg *Config) applyDefaults() {
+func (cfg *Config) ApplyDefaults() {
 	// Server
 	if strings.TrimSpace(cfg.Server.Listen) == "" {
 		cfg.Server.Listen = ":9090"

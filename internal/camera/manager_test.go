@@ -1,18 +1,18 @@
 package camera
 
 import (
-	"context"
-	"os"
-	"path/filepath"
-	"testing"
-	"time"
+ "context"
+ "os"
+ "path/filepath"
+ "testing"
+ "time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+ "github.com/stretchr/testify/assert"
+ "github.com/stretchr/testify/require"
 
-	"github.com/beyondChang/go-nvr/internal/config"
-	"github.com/beyondChang/go-nvr/internal/storage"
-	"github.com/beyondChang/go-nvr/internal/model"
+ "github.com/beyondChang/go-nvr/internal/config"
+ "github.com/beyondChang/go-nvr/internal/storage"
+ "github.com/beyondChang/go-nvr/internal/model"
 )
 
 func testConfig() *config.Config {
@@ -58,15 +58,13 @@ func testConfig() *config.Config {
 	}
 }
 
-func newTestManager(t *testing.T) (*CameraManager, *storage.Manager, *storage.DB, string) {
+func newTestManager(t *testing.T) (*CameraManager, *storage.Manager, *storage.DB) {
 	t.Helper()
 	tmpDir := t.TempDir()
-	configPath := filepath.Join(tmpDir, "config.yaml")
 
 	cfg := testConfig()
 	cfg.Storage.RootDir = filepath.Join(tmpDir, "storage")
 	require.NoError(t, os.MkdirAll(cfg.Storage.RootDir, 0o755))
-	require.NoError(t, config.Save(configPath, cfg))
 
 	dbPath := filepath.Join(tmpDir, "test.db")
 	db, err := storage.New(dbPath)
@@ -80,27 +78,12 @@ func newTestManager(t *testing.T) (*CameraManager, *storage.Manager, *storage.DB
 	require.NoError(t, err)
 	t.Cleanup(func() { store.CleanupTempFiles() })
 
-	mgr := NewCameraManager(cfg, store, db, configPath)
-	return mgr, store, db, configPath
-}
-
-func TestNewCameraManager(t *testing.T) {
-	tmpDir := t.TempDir()
-	cfg := testConfig()
-	cfg.Storage.RootDir = filepath.Join(tmpDir, "storage")
-	require.NoError(t, os.MkdirAll(cfg.Storage.RootDir, 0o755))
-
-	store, err := storage.NewManager(cfg.Storage.RootDir)
-	require.NoError(t, err)
-	defer store.CleanupTempFiles()
-
-	mgr := NewCameraManager(cfg, store, nil, "")
-	assert.NotNil(t, mgr)
-	assert.Equal(t, 0, mgr.RecorderCount())
+	mgr := NewCameraManager(cfg, store, db)
+	return mgr, store, db
 }
 
 func TestStart_EnabledCameras(t *testing.T) {
-	mgr, _, _, _ := newTestManager(t)
+	mgr, _, _ := newTestManager(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -157,7 +140,7 @@ func TestStart_DisabledCamerasSkipped(t *testing.T) {
 	require.NoError(t, err)
 	defer store.CleanupTempFiles()
 
-	mgr := NewCameraManager(cfg, store, db, "")
+	mgr := NewCameraManager(cfg, store, db)
 	err = mgr.Start(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 0, mgr.RecorderCount())
@@ -195,7 +178,7 @@ func TestStart_HTTPJPEGRecorderCreated(t *testing.T) {
 	require.NoError(t, err)
 	defer store.CleanupTempFiles()
 
-	mgr := NewCameraManager(cfg, store, db, "")
+	mgr := NewCameraManager(cfg, store, db)
 	err = mgr.Start(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, mgr.RecorderCount())
@@ -235,14 +218,14 @@ func TestStart_InvalidSegmentDuration(t *testing.T) {
 	require.NoError(t, err)
 	defer store.CleanupTempFiles()
 
-	mgr := NewCameraManager(cfg, store, db, "")
+	mgr := NewCameraManager(cfg, store, db)
 	err = mgr.Start(ctx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid segment duration")
 }
 
 func TestStop(t *testing.T) {
-	mgr, _, _, _ := newTestManager(t)
+	mgr, _, _ := newTestManager(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -287,7 +270,7 @@ func TestStop_EmptyManager(t *testing.T) {
 	require.NoError(t, err)
 	defer store.CleanupTempFiles()
 
-	mgr := NewCameraManager(cfg, store, nil, "")
+	mgr := NewCameraManager(cfg, store, nil)
 	err = mgr.Stop()
 	require.NoError(t, err)
 }
@@ -302,7 +285,7 @@ func TestStatus_EmptyManager(t *testing.T) {
 	require.NoError(t, err)
 	defer store.CleanupTempFiles()
 
-	mgr := NewCameraManager(cfg, store, nil, "")
+	mgr := NewCameraManager(cfg, store, nil)
 	statuses := mgr.Status()
 	assert.NotNil(t, statuses)
 	assert.Empty(t, statuses)
@@ -318,13 +301,13 @@ func TestCameraStatus_Unknown(t *testing.T) {
 	require.NoError(t, err)
 	defer store.CleanupTempFiles()
 
-	mgr := NewCameraManager(cfg, store, nil, "")
+	mgr := NewCameraManager(cfg, store, nil)
 	status := mgr.CameraStatus("nonexistent")
 	assert.Equal(t, model.StatusError, status)
 }
 
 func TestCameraStatus_Known(t *testing.T) {
-	mgr, _, _, _ := newTestManager(t)
+	mgr, _, _ := newTestManager(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -341,7 +324,7 @@ func TestCameraStatus_Known(t *testing.T) {
 }
 
 func TestGracefulShutdown(t *testing.T) {
-	mgr, _, _, _ := newTestManager(t)
+	mgr, _, _ := newTestManager(t)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	err := mgr.Start(ctx)
@@ -405,14 +388,14 @@ func TestStart_UnknownProtocol(t *testing.T) {
 	require.NoError(t, err)
 	defer store.CleanupTempFiles()
 
-	mgr := NewCameraManager(cfg, store, db, "")
+	mgr := NewCameraManager(cfg, store, db)
 	err = mgr.Start(ctx)
 	require.NoError(t, err) // should not fail, just skip unknown protocol
 	assert.Equal(t, 0, mgr.RecorderCount())
 }
 
 func TestStart_InsertsCameraRecords(t *testing.T) {
-	mgr, _, db, _ := newTestManager(t)
+	mgr, _, db := newTestManager(t)
 
 	// Initialize database
 	ctx, cancel := context.WithCancel(context.Background())
@@ -459,7 +442,7 @@ func TestStart_InsertsCameraRecords(t *testing.T) {
 // --- CRUD lifecycle tests ---
 
 func TestAddCamera_EnabledH264(t *testing.T) {
-	mgr, _, _, _ := newTestManager(t)
+	mgr, _, _ := newTestManager(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -483,7 +466,7 @@ func TestAddCamera_EnabledH264(t *testing.T) {
 }
 
 func TestAddCamera_Disabled(t *testing.T) {
-	mgr, _, _, _ := newTestManager(t)
+	mgr, _, _ := newTestManager(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -502,7 +485,7 @@ func TestAddCamera_Disabled(t *testing.T) {
 }
 
 func TestAddCamera_HTTPJPEG(t *testing.T) {
-	mgr, _, _, _ := newTestManager(t)
+	mgr, _, _ := newTestManager(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -523,7 +506,7 @@ func TestAddCamera_HTTPJPEG(t *testing.T) {
 }
 
 func TestAddCamera_DuplicateID(t *testing.T) {
-	mgr, _, _, _ := newTestManager(t)
+	mgr, _, _ := newTestManager(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -539,7 +522,7 @@ func TestAddCamera_DuplicateID(t *testing.T) {
 }
 
 func TestAddCamera_AutoID(t *testing.T) {
-	mgr, _, _, _ := newTestManager(t)
+	mgr, _, _ := newTestManager(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -555,36 +538,8 @@ func TestAddCamera_AutoID(t *testing.T) {
 	assert.True(t, len(id) > 4, "auto-generated ID should have cam- prefix")
 }
 
-func TestAddCamera_Persists(t *testing.T) {
-	mgr, _, _, configPath := newTestManager(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	_, err := mgr.AddCamera(ctx, config.CameraConfig{
-		ID:       "cam-persist",
-		Name:     "Persist Camera",
-			Protocol: "rtsp",
-				Encoding: "h264",
-		Enabled:  false,
-	})
-	require.NoError(t, err)
-
-	// Reload config from disk
-	loaded, err := config.Load(configPath)
-	require.NoError(t, err)
-	found := false
-	for _, cam := range loaded.Cameras {
-		if cam.ID == "cam-persist" {
-			found = true
-			assert.Equal(t, "Persist Camera", cam.Name)
-			break
-		}
-	}
-	assert.True(t, found, "camera should be persisted to config file")
-}
-
 func TestRemoveCamera_WithRecorder(t *testing.T) {
-	mgr, _, _, _ := newTestManager(t)
+	mgr, _, _ := newTestManager(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -607,7 +562,7 @@ func TestRemoveCamera_WithRecorder(t *testing.T) {
 }
 
 func TestRemoveCamera_NotFound(t *testing.T) {
-	mgr, _, _, _ := newTestManager(t)
+	mgr, _, _ := newTestManager(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -616,24 +571,8 @@ func TestRemoveCamera_NotFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found")
 }
 
-func TestRemoveCamera_Persists(t *testing.T) {
-	mgr, _, _, configPath := newTestManager(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	err := mgr.RemoveCamera(ctx, "cam-jpeg")
-	require.NoError(t, err)
-
-	// Reload config from disk
-	loaded, err := config.Load(configPath)
-	require.NoError(t, err)
-	for _, cam := range loaded.Cameras {
-		assert.NotEqual(t, "cam-jpeg", cam.ID, "removed camera should not be in config")
-	}
-}
-
 func TestUpdateCamera_Name(t *testing.T) {
-	mgr, _, _, _ := newTestManager(t)
+	mgr, _, _ := newTestManager(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -647,7 +586,7 @@ func TestUpdateCamera_Name(t *testing.T) {
 }
 
 func TestUpdateCamera_URL(t *testing.T) {
-	mgr, _, _, _ := newTestManager(t)
+	mgr, _, _ := newTestManager(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -666,7 +605,7 @@ func TestUpdateCamera_URL(t *testing.T) {
 }
 
 func TestUpdateCamera_Disable(t *testing.T) {
-	mgr, _, _, _ := newTestManager(t)
+	mgr, _, _ := newTestManager(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -687,7 +626,7 @@ func TestUpdateCamera_Disable(t *testing.T) {
 }
 
 func TestUpdateCamera_Enable(t *testing.T) {
-	mgr, _, _, _ := newTestManager(t)
+	mgr, _, _ := newTestManager(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -706,7 +645,7 @@ func TestUpdateCamera_Enable(t *testing.T) {
 }
 
 func TestUpdateCamera_NotFound(t *testing.T) {
-	mgr, _, _, _ := newTestManager(t)
+	mgr, _, _ := newTestManager(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -717,7 +656,7 @@ func TestUpdateCamera_NotFound(t *testing.T) {
 }
 
 func TestRestartRecorder(t *testing.T) {
-	mgr, _, _, _ := newTestManager(t)
+	mgr, _, _ := newTestManager(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -737,7 +676,7 @@ func TestRestartRecorder(t *testing.T) {
 }
 
 func TestRestartRecorder_Disabled(t *testing.T) {
-	mgr, _, _, _ := newTestManager(t)
+	mgr, _, _ := newTestManager(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -761,7 +700,7 @@ func TestCreateRecorder_ONVIF(t *testing.T) {
 	require.NoError(t, err)
 	defer store.CleanupTempFiles()
 
-	mgr := NewCameraManager(cfg, store, nil, "")
+	mgr := NewCameraManager(cfg, store, nil)
 
 	cam := config.CameraConfig{
 		ID:       "cam-onvif",
@@ -797,7 +736,7 @@ func TestCreateRecorder_ONVIF_WithEndpoint(t *testing.T) {
 	require.NoError(t, err)
 	defer store.CleanupTempFiles()
 
-	mgr := NewCameraManager(cfg, store, nil, "")
+	mgr := NewCameraManager(cfg, store, nil)
 
 	cam := config.CameraConfig{
 		ID:            "cam-onvif-endpoint",
@@ -830,7 +769,7 @@ func TestGetONVIFPTZController_NotFound(t *testing.T) {
 	require.NoError(t, err)
 	defer store.CleanupTempFiles()
 
-	mgr := NewCameraManager(cfg, store, nil, "")
+	mgr := NewCameraManager(cfg, store, nil)
 
 	ctx := context.Background()
 	_, err = mgr.GetONVIFPTZController(ctx, "nonexistent")
@@ -860,7 +799,7 @@ func TestGetONVIFPTZController_NotONVIF(t *testing.T) {
 	require.NoError(t, err)
 	defer store.CleanupTempFiles()
 
-	mgr := NewCameraManager(cfg, store, nil, "")
+	mgr := NewCameraManager(cfg, store, nil)
 
 	ctx := context.Background()
 	_, err = mgr.GetONVIFPTZController(ctx, "cam-h264")

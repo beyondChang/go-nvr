@@ -84,14 +84,14 @@ type Handler struct {
 	config  *config.Config
 	camMgr  *camera.CameraManager
 	hlsMgr  *hls.Manager
-	configPath string
 	snapshotMu    sync.RWMutex
 	snapshots     map[string]*snapshotCache // cameraID -> cached snapshot
 	mergeMgr      *merge.MergeManager
 }
+
 // NewHandler creates a new API handler.
-func NewHandler(db *storage.DB, store *storage.Manager, authMW func(http.Handler) http.Handler, cfg *config.Config, camMgr *camera.CameraManager, hlsMgr *hls.Manager, configPath string, mergeMgr *merge.MergeManager) *Handler {
-	return &Handler{db: db, store: store, authMW: authMW, config: cfg, camMgr: camMgr, hlsMgr: hlsMgr, configPath: configPath, snapshots: make(map[string]*snapshotCache), mergeMgr: mergeMgr}
+func NewHandler(db *storage.DB, store *storage.Manager, authMW func(http.Handler) http.Handler, cfg *config.Config, camMgr *camera.CameraManager, hlsMgr *hls.Manager, mergeMgr *merge.MergeManager) *Handler {
+	return &Handler{db: db, store: store, authMW: authMW, config: cfg, camMgr: camMgr, hlsMgr: hlsMgr, snapshots: make(map[string]*snapshotCache), mergeMgr: mergeMgr}
 }
 
 // Routes returns a chi.Router with all routes registered.
@@ -1401,7 +1401,7 @@ func noopAuthMW() func(http.Handler) http.Handler {
 
 // noopHandler is a helper for creating a Handler without real auth.
 func noopHandler(db *storage.DB, store *storage.Manager) *Handler {
-	return NewHandler(db, store, noopAuthMW(), nil, nil, nil, "", nil)
+	return NewHandler(db, store, noopAuthMW(), nil, nil, nil, nil)
 }
 // --- Test helper exported for handler_test.go ---
 
@@ -1413,7 +1413,7 @@ func TestHandler(db *storage.DB, store *storage.Manager) *Handler {
 // TestHandlerWithAuth creates a Handler with real auth middleware for testing.
 func TestHandlerWithAuth(db *storage.DB, store *storage.Manager, username, passwordHash string) *Handler {
 	authMW, _ := middleware.NewAuthMiddleware(username, passwordHash, "")
-	return NewHandler(db, store, authMW, nil, nil, nil, "", nil)
+	return NewHandler(db, store, authMW, nil, nil, nil, nil)
 }
 
 // requireAdmin is a middleware that rejects non-admin users.
@@ -1708,13 +1708,38 @@ func (h *Handler) handleUpdateSettings(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Persist config to disk
-	if err := config.Save(h.configPath, h.config); err != nil {
-		logger.Warn("failed to save config", "error", err)
+	// Persist settings to DB
+	ctx := r.Context()
+	if body.Cleanup != nil {
+		if body.Cleanup.RetentionDays != nil {
+			_ = h.db.SetSetting(ctx, "cleanup.retention_days", strconv.Itoa(*body.Cleanup.RetentionDays))
+		}
+		if body.Cleanup.DiskThresholdPercent != nil {
+			_ = h.db.SetSetting(ctx, "cleanup.disk_threshold_percent", strconv.Itoa(*body.Cleanup.DiskThresholdPercent))
+		}
+		if body.Cleanup.CheckInterval != nil {
+			_ = h.db.SetSetting(ctx, "cleanup.check_interval", *body.Cleanup.CheckInterval)
+		}
+	}
+	if body.WebDAV != nil {
+		if body.WebDAV.Enabled != nil {
+			_ = h.db.SetSetting(ctx, "webdav.enabled", strconv.FormatBool(*body.WebDAV.Enabled))
+		}
+		if body.WebDAV.PathPrefix != nil {
+			_ = h.db.SetSetting(ctx, "webdav.path_prefix", *body.WebDAV.PathPrefix)
+		}
+		if body.WebDAV.ReadWrite != nil {
+			_ = h.db.SetSetting(ctx, "webdav.read_write", strconv.FormatBool(*body.WebDAV.ReadWrite))
+		}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
+
+// --- Merge settings endpoints ---
+// --- Merge settings endpoints ---
+
+// --- Merge settings endpoints ---
 
 // --- Merge settings endpoints ---
 
@@ -1793,9 +1818,25 @@ func (h *Handler) handleUpdateMergeSettings(w http.ResponseWriter, r *http.Reque
 		h.config.Merge.MinSegmentsToMerge = *body.MinSegmentsToMerge
 	}
 
-	// Persist config to disk
-	if err := config.Save(h.configPath, h.config); err != nil {
-		logger.Warn("failed to save config", "error", err)
+	// Persist merge settings to DB
+	ctx := r.Context()
+	if body.Enabled != nil {
+		_ = h.db.SetSetting(ctx, "merge.enabled", strconv.FormatBool(*body.Enabled))
+	}
+	if body.CheckInterval != nil {
+		_ = h.db.SetSetting(ctx, "merge.check_interval", *body.CheckInterval)
+	}
+	if body.WindowSize != nil {
+		_ = h.db.SetSetting(ctx, "merge.window_size", *body.WindowSize)
+	}
+	if body.BatchLimit != nil {
+		_ = h.db.SetSetting(ctx, "merge.batch_limit", strconv.Itoa(*body.BatchLimit))
+	}
+	if body.MinSegmentAge != nil {
+		_ = h.db.SetSetting(ctx, "merge.min_segment_age", *body.MinSegmentAge)
+	}
+	if body.MinSegmentsToMerge != nil {
+		_ = h.db.SetSetting(ctx, "merge.min_segments_to_merge", strconv.Itoa(*body.MinSegmentsToMerge))
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
@@ -1919,7 +1960,7 @@ func (h *Handler) handleBackup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "数据库不可用")
 		return
 	}
-	backupDir := filepath.Join(filepath.Dir(h.configPath), "backups")
+	backupDir := filepath.Join(h.config.Storage.RootDir, "backups")
 	if err := os.MkdirAll(backupDir, 0755); err != nil {
 		writeError(w, http.StatusInternalServerError, "创建备份目录失败")
 		return
@@ -1933,7 +1974,7 @@ func (h *Handler) handleBackup(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "created", "file": filename})
 }
 func (h *Handler) handleListBackups(w http.ResponseWriter, r *http.Request) {
-	backupDir := filepath.Join(filepath.Dir(h.configPath), "backups")
+	backupDir := filepath.Join(h.config.Storage.RootDir, "backups")
 	entries, err := os.ReadDir(backupDir)
 	if err != nil {
 		writeJSON(w, http.StatusOK, []string{})

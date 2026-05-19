@@ -615,11 +615,11 @@ func TestLogin_ResponseContentType(t *testing.T) {
 
 // newHandlerWithConfig creates a Handler with a real config for testing.
 func newHandlerWithConfig(db *storage.DB, store *storage.Manager, cfg *config.Config) *Handler {
-	return NewHandler(db, store, noopAuthMW(), cfg, nil, nil, "", nil)
+	return NewHandler(db, store, noopAuthMW(), cfg, nil, nil, nil)
 }
 func newHandlerWithConfigAndAuth(db *storage.DB, store *storage.Manager, username, passwordHash string, cfg *config.Config) *Handler {
 	authMW, _ := middleware.NewAuthMiddleware(username, passwordHash, "")
-	return NewHandler(db, store, authMW, cfg, nil, nil, "", nil)
+	return NewHandler(db, store, authMW, cfg, nil, nil, nil)
 }
 func TestGetSettings_NoConfig(t *testing.T) {
 	db, store := setupTestDB(t)
@@ -1527,9 +1527,9 @@ func newTestCamHandler(t *testing.T) (*Handler, *camera.CameraManager, *config.C
 		Cleanup: config.CleanupConfig{RetentionDays: 30, CheckInterval: "1h", DiskThresholdPercent: 95},
 		Cameras: []config.CameraConfig{},
 	}
-	camMgr := camera.NewCameraManager(cfg, store, db, "")
+	camMgr := camera.NewCameraManager(cfg, store, db)
 	t.Cleanup(func() { camMgr.Stop() })
-	h := NewHandler(db, store, noopAuthMW(), cfg, camMgr, nil, "", nil)
+	h := NewHandler(db, store, noopAuthMW(), cfg, camMgr, nil, nil)
 	return h, camMgr, cfg
 }
 
@@ -1793,7 +1793,7 @@ func newSnapshotTestHandler(t *testing.T, snapshotServer *httptest.Server, camer
 			},
 		},
 	}
-	return NewHandler(db, store, noopAuthMW(), cfg, nil, nil, "", nil)
+	return NewHandler(db, store, noopAuthMW(), cfg, nil, nil, nil)
 }
 
 func TestHandleSnapshot_NoURL(t *testing.T) {
@@ -1804,7 +1804,7 @@ func TestHandleSnapshot_NoURL(t *testing.T) {
 			{ID: "cam-1", Name: "NoSnap", Protocol: "rtsp_h264", URL: "rtsp://x", Enabled: true},
 		},
 	}
-	h := NewHandler(db, store, noopAuthMW(), cfg, nil, nil, "", nil)
+	h := NewHandler(db, store, noopAuthMW(), cfg, nil, nil, nil)
 
 	rr := doRequest(t, h.Routes(), "GET", "/api/cameras/cam-1/snapshot", nil, "", "")
 	require.Equal(t, http.StatusNotFound, rr.Code)
@@ -1817,7 +1817,7 @@ func TestHandleSnapshot_CameraNotFound(t *testing.T) {
 		Cleanup: config.CleanupConfig{RetentionDays: 30},
 		Cameras: []config.CameraConfig{},
 	}
-	h := NewHandler(db, store, noopAuthMW(), cfg, nil, nil, "", nil)
+	h := NewHandler(db, store, noopAuthMW(), cfg, nil, nil, nil)
 
 	rr := doRequest(t, h.Routes(), "GET", "/api/cameras/nonexistent/snapshot", nil, "", "")
 	require.Equal(t, http.StatusNotFound, rr.Code)
@@ -2226,7 +2226,7 @@ func TestHandleMergeStatus_WithManager(t *testing.T) {
 		func(cameraID string) *config.MergeConfig { return nil },
 		func() []config.CameraConfig { return cfg.Cameras },
 	)
-	h := NewHandler(db, store, noopAuthMW(), cfg, nil, nil, "", mergeMgr)
+	h := NewHandler(db, store, noopAuthMW(), cfg, nil, nil, mergeMgr)
 
 	rr := doRequest(t, h.Routes(), "GET", "/api/merge/status", nil, "", "")
 	require.Equal(t, http.StatusOK, rr.Code)
@@ -2252,7 +2252,7 @@ func TestHandleMergePending_WithManager(t *testing.T) {
 		func(cameraID string) *config.MergeConfig { return nil },
 		func() []config.CameraConfig { return cfg.Cameras },
 	)
-	h := NewHandler(db, store, noopAuthMW(), cfg, nil, nil, "", mergeMgr)
+	h := NewHandler(db, store, noopAuthMW(), cfg, nil, nil, mergeMgr)
 
 	rr := doRequest(t, h.Routes(), "GET", "/api/merge/pending", nil, "", "")
 	require.Equal(t, http.StatusOK, rr.Code)
@@ -2294,7 +2294,7 @@ func TestHandleStopHLSStream_NotActive(t *testing.T) {
 	db, store := setupTestDB(t)
 	defer db.Close()
 	cfg := &config.Config{Cleanup: config.CleanupConfig{RetentionDays: 30}, Cameras: []config.CameraConfig{}}
-	h := NewHandler(db, store, noopAuthMW(), cfg, nil, hlsMgr, "", nil)
+	h := NewHandler(db, store, noopAuthMW(), cfg, nil, hlsMgr, nil)
 
 	rr := doRequest(t, h.Routes(), "DELETE", "/api/cameras/nonexistent/stream", nil, "", "")
 	require.Equal(t, http.StatusOK, rr.Code)
@@ -2308,7 +2308,7 @@ func TestHandleStopHLSStream_Active(t *testing.T) {
 	db, store := setupTestDB(t)
 	defer db.Close()
 	cfg := &config.Config{Cleanup: config.CleanupConfig{RetentionDays: 30}, Cameras: []config.CameraConfig{}}
-	h := NewHandler(db, store, noopAuthMW(), cfg, nil, hlsMgr, "", nil)
+	h := NewHandler(db, store, noopAuthMW(), cfg, nil, hlsMgr, nil)
 
 	// Manually insert a stream entry
 	hlsMgr.StartStream("cam-1",
