@@ -8,24 +8,23 @@
   import { showToast } from '$lib/toast';
   import CameraFormModal from '$components/CameraFormModal.svelte';
 
-  function formatTimeAgo(lastSeen: string | null | undefined): { text: string; color: string } {
-    if (!lastSeen) return { text: t('cameras.neverRecorded'), color: 'badge-neutral' };
-    const now = Date.now();
-    const then = new Date(lastSeen).getTime();
-    if (isNaN(then)) return { text: t('cameras.neverRecorded'), color: 'badge-neutral' };
-    const diffMs = now - then;
-    const diffMin = Math.floor(diffMs / 60000);
-    if (diffMin < 5) {
-      return { text: t('cameras.active') + ' ' + diffMin + t('cameras.minutesAgo'), color: 'badge-success' };
-    } else if (diffMin < 30) {
-      return { text: diffMin + t('cameras.minutesAgo'), color: 'badge-warning' };
-    } else {
-      const diffHours = Math.floor(diffMin / 60);
-      if (diffHours < 1) {
-        return { text: diffMin + t('cameras.minutesAgo'), color: 'badge-error' };
-      }
-      return { text: diffHours + t('cameras.hoursAgo'), color: 'badge-error' };
+  function getConnectionStatus(status: string | undefined): { text: string; color: string; reason: string } {
+    switch (status) {
+      case 'recording':
+        return { text: t('cameras.online'), color: 'badge-success', reason: '' };
+      case 'reconnecting':
+        return { text: t('cameras.connecting'), color: 'badge-warning', reason: '' };
+      case 'stopped':
+        return { text: t('cameras.offline'), color: 'badge-neutral', reason: t('cameras.statusStopped') };
+      case 'error':
+        return { text: t('cameras.offline'), color: 'badge-neutral', reason: t('cameras.statusError') };
+      default:
+        return { text: t('cameras.offline'), color: 'badge-neutral', reason: status ? t('cameras.statusStopped') : '' };
     }
+  }
+
+  function isRecording(status: string | undefined): boolean {
+    return status === 'recording';
   }
 
   let cameras = $state<Camera[]>([]);
@@ -331,6 +330,7 @@
                   <tr>
                     <th class="px-6 py-3 text-left text-xs font-medium th-text-muted uppercase tracking-wider">{t('cameras.tableName')}</th>
                     <th class="px-6 py-3 text-left text-xs font-medium th-text-muted uppercase tracking-wider">{t('cameras.tableStatus')}</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium th-text-muted uppercase tracking-wider">{t('cameras.tableRecording')}</th>
                     <th class="px-6 py-3 text-left text-xs font-medium th-text-muted uppercase tracking-wider">{t('cameras.tableProtocol')}</th>
                     <th class="px-6 py-3 text-left text-xs font-medium th-text-muted uppercase tracking-wider">{t('cameras.tableEncoding')}</th>
                     <th class="px-6 py-3 text-left text-xs font-medium th-text-muted uppercase tracking-wider">{t('cameras.tableUrl')}</th>
@@ -365,9 +365,16 @@
                         {/if}
                       </td>
                       <td class="px-6 py-4 whitespace-nowrap text-sm">
-                        <span class="badge {formatTimeAgo(camera.last_seen).color}">{formatTimeAgo(camera.last_seen).text}</span>
-                        {#if camera.status}
-                          <div class="text-xs th-text-muted mt-0.5">{camera.status}</div>
+                        <span class="badge {getConnectionStatus(camera.status).color}">{getConnectionStatus(camera.status).text}</span>
+                        {#if getConnectionStatus(camera.status).reason}
+                          <div class="text-xs th-text-muted mt-0.5">{getConnectionStatus(camera.status).reason}</div>
+                        {/if}
+                      </td>
+                      <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        {#if isRecording(camera.status)}
+                          <span class="badge badge-success">{t('cameras.statusRecording')}</span>
+                        {:else}
+                          <span class="text-xs th-text-muted">-</span>
                         {/if}
                       </td>
                       <td class="px-6 py-4 whitespace-nowrap text-sm th-text-secondary">{t('cameras.protocol.' + camera.protocol) || camera.protocol}</td>
