@@ -44,6 +44,7 @@
   let deletingCamera = $state<Camera | null>(null);
 
   // ONVIF discovery
+  let showOnvifModal = $state(false);
   let scanning = $state(false);
   let scanDone = $state(false);
   let scanError = $state('');
@@ -89,8 +90,11 @@
     deletingCamera = null;
   }
 
-  function handleDeleteKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') handleDeleteCancel();
+  function handleGlobalKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      if (deletingCamera) handleDeleteCancel();
+      else if (showOnvifModal) showOnvifModal = false;
+    }
   }
 
   async function handleDelete() {
@@ -127,14 +131,17 @@
     editingNameId = null;
   }
 
-  async function scanONVIF() {
+  function openOnvifModal() {
+    showOnvifModal = true;
+    scanONVIF();
+  }
+
+  function scanONVIF() {
     scanning = true;
     scanError = '';
     discoveredDevices = [];
     scanDone = false;
-    try {
-      const results = await discoverONVIFDevices(5);
-      // Filter out devices that are already added as ONVIF cameras
+    discoverONVIFDevices(5).then(results => {
       const existingEndpoints = new Set(
         cameras.filter(c => c.protocol === 'onvif' && c.url).map(c => c.url)
       );
@@ -142,13 +149,15 @@
         const ep = d.endpoint || (d.xaddrs.length > 0 ? d.xaddrs[0] : '');
         return !existingEndpoints.has(ep);
       });
-    } catch (e) {
+    }).catch(e => {
       scanError = e instanceof Error ? e.message : String(e);
-    } finally {
+    }).finally(() => {
       scanning = false;
       scanDone = true;
-    }
+    });
   }
+
+
 
   async function addDiscoveredDevice(device: DiscoveredDevice) {
     addingDeviceId = device.uuid;
@@ -176,7 +185,7 @@
   });
 </script>
 
-<svelte:window onkeydown={handleDeleteKeydown} />
+<svelte:window onkeydown={handleGlobalKeydown} />
 <div class="min-h-screen th-bg-primary pt-[68px]">
 
   <!-- Main content -->
@@ -185,12 +194,8 @@
       <h2 class="text-2xl font-bold th-text-primary">{t('cameras.title')}</h2>
       <div class="flex gap-3">
         {#if isAdmin()}
-        <button on:click={scanONVIF} class="btn btn-ghost" disabled={scanning}>
-          {#if scanning}
-            <span class="spinner mr-2"></span>{t('onvif.discovering')}
-          {:else}
-            {t('onvif.discover')}
-          {/if}
+        <button on:click={openOnvifModal} class="btn btn-ghost">
+          {t('onvif.discover')}
         </button>
         <button on:click={openAddForm} class="btn btn-primary">
           + {t('cameras.addCamera')}
@@ -228,69 +233,82 @@
     {:else}
       <div class="space-y-6">
 
-        <!-- ONVIF Discovery Panel -->
-        {#if scanning || scanDone}
-          <div class="card p-6 border th-border">
-            <h3 class="text-lg font-semibold th-text-primary mb-4">
-              {t('onvif.discover')}
-            </h3>
-            <!-- ONVIF Credentials -->
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 items-end">
-              <div>
-                <label class="input-label text-xs">{t('onvif.username')}</label>
-                <input type="text" class="input py-1 text-sm" bind:value={onvifUsername} placeholder="admin" />
-              </div>
-              <div>
-                <label class="input-label text-xs">{t('onvif.password')}</label>
-                <input type="password" class="input py-1 text-sm" bind:value={onvifPassword} placeholder="******" />
-              </div>
-              <div class="flex items-center">
-                <span class="text-xs th-text-muted">{t('onvif.credentialsHint')}</span>
-              </div>
-            </div>
-            {#if scanning}
-              <div class="flex items-center gap-3 th-text-secondary py-4">
-                <span class="spinner"></span>
-                <span>{t('onvif.discovering')}</span>
-              </div>
-            {:else if scanError}
-              <div class="th-color-danger text-sm py-2">{scanError}</div>
-            {:else if discoveredDevices.length === 0}
-              <p class="th-text-secondary text-sm py-2">{t('onvif.noDevices')}</p>
-            {:else}
-              <div class="space-y-3">
-                {#each discoveredDevices as device (device.uuid)}
-                  <div class="flex items-center justify-between p-4 rounded-md th-bg-hover border th-border">
-                    <div class="min-w-0 flex-1 mr-4">
-                      <div class="font-medium th-text-primary truncate">{device.name || t('onvif.deviceName')}</div>
-                      <div class="text-sm th-text-secondary truncate">{device.endpoint}</div>
-                      {#if device.hardware}
-                        <div class="text-xs th-text-muted mt-0.5">{device.hardware}</div>
-                      {/if}
-                    </div>
-                    {#if isAdmin()}
-                    <button
-                      on:click={() => addDiscoveredDevice(device)}
-                      class="btn btn-primary btn-sm shrink-0"
-                      disabled={addingDeviceId === device.uuid}
-                    >
-                      {#if addingDeviceId === device.uuid}
-                        <span class="spinner mr-1"></span>
-                      {/if}
-                      {t('onvif.addCamera')}
-                    </button>
-                    {/if}
-                  </div>
-                {/each}
-              </div>
-            {/if}
-            {#if !scanning && scanDone}
-              <div class="mt-4 flex justify-end">
-                <button on:click={scanONVIF} class="btn btn-ghost btn-sm">
-                  {t('onvif.discover')}
+        <!-- ONVIF Discovery Modal -->
+        {#if showOnvifModal}
+          <div
+            class="fixed inset-0 z-50 flex items-start justify-center pt-[10vh]"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" on:click={() => showOnvifModal = false} transition:fade={{ duration: 150 }}></div>
+            <div
+              class="relative w-full max-w-2xl mx-4 max-h-[75vh] overflow-y-auto card p-6 border th-border th-bg-primary"
+              transition:fly={{ y: 20, duration: 200 }}
+            >
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold th-text-primary">{t('onvif.discover')}</h3>
+                <button on:click={() => showOnvifModal = false} class="btn btn-ghost p-1" aria-label={t('cameras.cancel')}>
+                  <X size={20} />
                 </button>
               </div>
-            {/if}
+              <!-- ONVIF Credentials -->
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 items-end">
+                <div>
+                  <label class="input-label text-xs">{t('onvif.username')}</label>
+                  <input type="text" class="input py-1 text-sm" bind:value={onvifUsername} placeholder="admin" />
+                </div>
+                <div>
+                  <label class="input-label text-xs">{t('onvif.password')}</label>
+                  <input type="password" class="input py-1 text-sm" bind:value={onvifPassword} placeholder="******" />
+                </div>
+                <div class="flex items-center">
+                  <span class="text-xs th-text-muted">{t('onvif.credentialsHint')}</span>
+                </div>
+              </div>
+              {#if scanning}
+                <div class="flex items-center gap-3 th-text-secondary py-4">
+                  <span class="spinner"></span>
+                  <span>{t('onvif.discovering')}</span>
+                </div>
+              {:else if scanError}
+                <div class="th-color-danger text-sm py-2">{scanError}</div>
+              {:else if discoveredDevices.length === 0}
+                <p class="th-text-secondary text-sm py-2">{t('onvif.noDevices')}</p>
+              {:else}
+                <div class="space-y-3">
+                  {#each discoveredDevices as device (device.uuid)}
+                    <div class="flex items-center justify-between p-4 rounded-md th-bg-hover border th-border">
+                      <div class="min-w-0 flex-1 mr-4">
+                        <div class="font-medium th-text-primary truncate">{device.name || t('onvif.deviceName')}</div>
+                        <div class="text-sm th-text-secondary truncate">{device.endpoint}</div>
+                        {#if device.hardware}
+                          <div class="text-xs th-text-muted mt-0.5">{device.hardware}</div>
+                        {/if}
+                      </div>
+                      {#if isAdmin()}
+                      <button
+                        on:click={() => addDiscoveredDevice(device)}
+                        class="btn btn-primary btn-sm shrink-0"
+                        disabled={addingDeviceId === device.uuid}
+                      >
+                        {#if addingDeviceId === device.uuid}
+                          <span class="spinner mr-1"></span>
+                        {/if}
+                        {t('onvif.addCamera')}
+                      </button>
+                      {/if}
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+              {#if !scanning && scanDone}
+                <div class="mt-4 flex justify-end">
+                  <button on:click={scanONVIF} class="btn btn-ghost btn-sm">
+                    {t('onvif.discover')}
+                  </button>
+                </div>
+              {/if}
+            </div>
           </div>
         {/if}
 
