@@ -4,8 +4,9 @@
   import { isAdmin } from '$lib/api';
   import type { Camera, DiscoveredDevice } from '$lib/api';
   import { t } from '$lib/i18n';
-  import { Eye, Pencil, Camera as CameraIcon, AlertCircle } from 'lucide-svelte';
+  import { Eye, Pencil, X, Camera as CameraIcon, AlertCircle, TriangleAlert } from 'lucide-svelte';
   import { showToast } from '$lib/toast';
+  import { fade, fly } from 'svelte/transition';
   import CameraFormModal from '$components/CameraFormModal.svelte';
 
   function getConnectionStatus(status: string | undefined): { text: string; color: string; reason: string } {
@@ -82,6 +83,14 @@
     } finally {
       loading = false;
     }
+  }
+
+  function handleDeleteCancel() {
+    deletingCamera = null;
+  }
+
+  function handleDeleteKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') handleDeleteCancel();
   }
 
   async function handleDelete() {
@@ -167,6 +176,7 @@
   });
 </script>
 
+<svelte:window onkeydown={handleDeleteKeydown} />
 <div class="min-h-screen th-bg-primary pt-[68px]">
 
   <!-- Main content -->
@@ -292,20 +302,38 @@
           onsaved={handleFormSaved}
         />
 
-        <!-- Delete Confirmation -->
+        <!-- Delete Confirmation Modal -->
         {#if deletingCamera}
-          <div class="card p-6 border th-border-danger bg-[rgba(239,68,68,0.2)]">
-            <h3 class="text-lg font-semibold th-color-danger mb-2">{t('cameras.deleteTitle')}</h3>
-            <p class="th-text-secondary mb-4">
-              {t('cameras.deleteMessage', { name: deletingCamera.name })}
-            </p>
-            <div class="flex items-center gap-3">
-              <button on:click={handleDelete} class="px-4 py-2 th-bg-danger hover:th-bg-danger-light text-white rounded-md transition-colors">
-                {t('cameras.deleteConfirm')}
-              </button>
-              <button on:click={() => deletingCamera = null} class="btn btn-ghost">
-                {t('cameras.cancel')}
-              </button>
+          <div
+            class="fixed inset-0 z-50 flex items-start justify-center pt-[25vh]"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" on:click={handleDeleteCancel} transition:fade={{ duration: 150 }}></div>
+            <div
+              class="relative w-full max-w-sm mx-4 card p-6 border th-border th-bg-primary"
+              transition:fly={{ y: 20, duration: 200 }}
+            >
+              <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2 th-color-danger">
+                  <TriangleAlert size={22} />
+                  <h3 class="text-lg font-semibold">{t('cameras.deleteTitle')}</h3>
+                </div>
+                <button on:click={handleDeleteCancel} class="btn btn-ghost p-1" aria-label={t('cameras.cancel')}>
+                  <X size={20} />
+                </button>
+              </div>
+              <p class="th-text-secondary mb-6">
+                {t('cameras.deleteMessage', { name: deletingCamera.name })}
+              </p>
+              <div class="flex items-center justify-end gap-3">
+                <button on:click={handleDeleteCancel} class="btn btn-ghost">
+                  {t('cameras.cancel')}
+                </button>
+                <button on:click={handleDelete} class="px-4 py-2 th-bg-danger hover:th-bg-danger-light text-white rounded-md transition-colors font-medium text-sm">
+                  {t('cameras.deleteConfirm')}
+                </button>
+              </div>
             </div>
           </div>
         {/if}
