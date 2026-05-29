@@ -350,12 +350,6 @@
           </div>
         </div>
 
-        <!-- Enabled -->
-        <div class="md:col-span-3 flex items-center gap-2">
-          <input id="cam-enabled" type="checkbox" class="accent-[var(--color-accent)]" bind:checked={formEnabled} />
-          <label for="cam-enabled" class="th-text-secondary text-sm">{t('cameras.enabledToggle')}</label>
-        </div>
-
         <!-- Description -->
         <div class="md:col-span-3">
           <label for="cam-desc" class="input-label">{t('cameras.description')}</label>
@@ -391,6 +385,12 @@
           <label for="cam-retention" class="input-label">{t('cameras.retentionDays')}</label>
           <input id="cam-retention" type="number" min="0" class="input" bind:value={formRetentionDays} />
           <p class="th-text-muted text-xs mt-1">{t('cameras.retentionDaysHint')}</p>
+        </div>
+
+        <!-- Enabled -->
+        <div class="flex items-center md:items-end md:pb-1.5 gap-2">
+          <input id="cam-enabled" type="checkbox" class="accent-[var(--color-accent)]" bind:checked={formEnabled} />
+          <label for="cam-enabled" class="th-text-secondary text-sm">{t('cameras.enabledToggle')}</label>
         </div>
       </div>
 
