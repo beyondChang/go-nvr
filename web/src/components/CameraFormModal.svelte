@@ -387,11 +387,6 @@
           <p class="th-text-muted text-xs mt-1">{t('cameras.retentionDaysHint')}</p>
         </div>
 
-        <!-- Enabled -->
-        <div class="flex items-center md:items-end md:pb-1.5 gap-2">
-          <input id="cam-enabled" type="checkbox" class="accent-[var(--color-accent)]" bind:checked={formEnabled} />
-          <label for="cam-enabled" class="th-text-secondary text-sm">{t('cameras.enabledToggle')}</label>
-        </div>
       </div>
 
       <!-- Merge Config (edit mode only) -->
@@ -534,16 +529,22 @@
         </details>
       {/if}
 
-      <div class="flex items-center gap-3 mt-6">
-        <button on:click={handleSubmit} class="btn btn-primary" disabled={saving}>
-          {#if saving}
-            <span class="spinner mr-2"></span>
-          {/if}
-          {t('cameras.save')}
-        </button>
-        <button on:click={handleCancel} class="btn btn-ghost">
-          {t('cameras.cancel')}
-        </button>
+      <div class="flex items-center justify-between gap-4 mt-6 pt-4 border-t th-border">
+        <div class="flex items-center gap-2">
+          <input id="cam-enabled" type="checkbox" class="accent-[var(--color-accent)]" bind:checked={formEnabled} />
+          <label for="cam-enabled" class="th-text-secondary text-sm cursor-pointer select-none">{t('cameras.enabledToggle')}</label>
+        </div>
+        <div class="flex items-center gap-3">
+          <button on:click={handleCancel} class="btn btn-ghost">
+            {t('cameras.cancel')}
+          </button>
+          <button on:click={handleSubmit} class="btn btn-primary" disabled={saving}>
+            {#if saving}
+              <span class="spinner mr-2"></span>
+            {/if}
+            {t('cameras.save')}
+          </button>
+        </div>
       </div>
     </div>
   </div>
