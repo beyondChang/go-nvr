@@ -576,8 +576,9 @@ type CameraRow struct {
  RetentionDays int                 `json:"retention_days"`
  Status       model.RecorderStatus `json:"status"`
  LastSeen     *time.Time           `json:"last_seen,omitempty"`
- Username    string               `json:"username"`
- HasPassword bool                 `json:"has_password"`
+	Password   string               `json:"-"`
+	Username    string               `json:"username"`
+	HasPassword bool                 `json:"has_password"`
  // Per-camera merge config (nil = use global)
  MergeEnabled         *bool   `json:"merge_enabled,omitempty"`
  MergeCheckInterval   *string `json:"merge_check_interval,omitempty"`
@@ -603,6 +604,7 @@ type UserRow struct {
 
 func (d *DB) ListCameras(ctx context.Context) ([]CameraRow, error) {
 	rows, err := d.db.QueryContext(ctx, `SELECT id, name, protocol, encoding, url, enabled, description, location, brand, model, serial_number, retention_days, username, CASE WHEN password IS NOT NULL AND password != '' THEN 1 ELSE 0 END as has_password,
+		password,
 		merge_enabled, merge_check_interval, merge_window_size, merge_batch_limit, merge_min_segment_age, merge_min_segments_to_merge,
 		onvif_endpoint, profile_token, stream_encoding
 		FROM cameras ORDER BY id;`)
@@ -617,6 +619,7 @@ func (d *DB) ListCameras(ctx context.Context) ([]CameraRow, error) {
 		var mergeCheckInterval, mergeWindowSize, mergeMinSegmentAge sql.NullString
 		var mergeBatchLimit, mergeMinSegmentsToMerge sql.NullInt64
 		if err := rows.Scan(&c.ID, &c.Name, &c.Protocol, &c.Encoding, &c.URL, &c.Enabled, &c.Description, &c.Location, &c.Brand, &c.Model, &c.SerialNumber, &c.RetentionDays, &c.Username, &c.HasPassword,
+			&c.Password,
 			&mergeEnabled, &mergeCheckInterval, &mergeWindowSize, &mergeBatchLimit, &mergeMinSegmentAge, &mergeMinSegmentsToMerge,
 			&c.ONVIFEndpoint, &c.ProfileToken, &c.StreamEncoding); err != nil {
 			return nil, err
@@ -657,10 +660,12 @@ func (d *DB) GetCamera(ctx context.Context, cameraID string) (*CameraRow, error)
 	var mergeCheckInterval, mergeWindowSize, mergeMinSegmentAge sql.NullString
 	var mergeBatchLimit, mergeMinSegmentsToMerge sql.NullInt64
 	err := d.db.QueryRowContext(ctx, `SELECT id, name, protocol, encoding, url, enabled, description, location, brand, model, serial_number, retention_days, username, CASE WHEN password IS NOT NULL AND password != '' THEN 1 ELSE 0 END as has_password,
+		password,
 		merge_enabled, merge_check_interval, merge_window_size, merge_batch_limit, merge_min_segment_age, merge_min_segments_to_merge,
 		onvif_endpoint, profile_token, stream_encoding
 		FROM cameras WHERE id = ?`, cameraID).Scan(
 		&c.ID, &c.Name, &c.Protocol, &c.Encoding, &c.URL, &c.Enabled, &c.Description, &c.Location, &c.Brand, &c.Model, &c.SerialNumber, &c.RetentionDays, &c.Username, &c.HasPassword,
+		&c.Password,
 		&mergeEnabled, &mergeCheckInterval, &mergeWindowSize, &mergeBatchLimit, &mergeMinSegmentAge, &mergeMinSegmentsToMerge,
 		&c.ONVIFEndpoint, &c.ProfileToken, &c.StreamEncoding)
 	if err != nil {

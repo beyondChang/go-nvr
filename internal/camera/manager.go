@@ -165,6 +165,38 @@ func (cm *CameraManager) Start(ctx context.Context) error {
 		return fmt.Errorf("camera manager: invalid segment duration %q: %w", cm.cfg.Storage.SegmentDuration, err)
 	}
 
+	// Load cameras from database into in-memory config if not already present
+	if cm.db != nil {
+		dbCameras, err := cm.db.ListCameras(ctx)
+		if err != nil {
+			logger.Error("failed to list cameras from db", "error", err)
+		} else {
+			existing := make(map[string]bool, len(cm.cfg.Cameras))
+			for _, c := range cm.cfg.Cameras {
+				existing[c.ID] = true
+			}
+			for _, dbc := range dbCameras {
+				if existing[dbc.ID] {
+					continue
+				}
+				cm.cfg.Cameras = append(cm.cfg.Cameras, config.CameraConfig{
+					ID:             dbc.ID,
+					Name:           dbc.Name,
+					Protocol:       dbc.Protocol,
+					Encoding:       dbc.Encoding,
+					URL:            dbc.URL,
+					Username:       dbc.Username,
+					Password:       dbc.Password,
+					Enabled:        dbc.Enabled,
+					ONVIFEndpoint:  dbc.ONVIFEndpoint,
+					ProfileToken:   dbc.ProfileToken,
+					StreamEncoding: dbc.StreamEncoding,
+				})
+				logger.Info("loaded camera from database", "camera_id", dbc.ID)
+			}
+		}
+	}
+
 	for _, cam := range cm.cfg.Cameras {
 		// Insert camera record into database
 		if err := cm.db.UpsertCamera(ctx, cam.ID, cam.Name, string(cam.Protocol), cam.Encoding, cam.URL, cam.Username, cam.Password, cam.Enabled, cam.ONVIFEndpoint, cam.ProfileToken, cam.StreamEncoding); err != nil {
