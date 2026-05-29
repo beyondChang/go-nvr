@@ -221,7 +221,7 @@
   >
     <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" on:click={handleCancel} transition:fade={{ duration: 150 }}></div>
     <div
-      class="relative w-full max-w-2xl mx-4 max-h-[80vh] overflow-y-auto card p-6 border th-border th-bg-primary"
+      class="relative w-full max-w-4xl mx-4 max-h-[80vh] overflow-y-auto card p-6 border th-border th-bg-primary"
       transition:fly={{ y: 20, duration: 200 }}
     >
       <div class="flex items-center justify-between mb-4">
@@ -233,7 +233,7 @@
         </button>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
         <!-- Name -->
         <div>
           <label for="cam-name" class="input-label">{t('cameras.name')}</label>
@@ -275,7 +275,7 @@
         </div>
 
         <!-- URL -->
-        <div class="md:col-span-2">
+        <div class="md:col-span-3">
           <label for="cam-url" class="input-label">
             {t('cameras.url')}
             {#if formProtocol === 'onvif'}
@@ -357,7 +357,7 @@
         </div>
 
         <!-- Description -->
-        <div class="md:col-span-2">
+        <div class="md:col-span-3">
           <label for="cam-desc" class="input-label">{t('cameras.description')}</label>
           <textarea id="cam-desc" class="input" rows="2" bind:value={formDescription} placeholder={t('cameras.descriptionPlaceholder')}></textarea>
         </div>
