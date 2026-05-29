@@ -18,7 +18,11 @@ var pathPrefixes = []string{
 func normalizePath(path string) string {
 	for _, prefix := range pathPrefixes {
 		if strings.HasPrefix(path, prefix) {
-			return prefix[:len(prefix)-1] + "/{id}" + path[len(prefix)-1:]
+			rest := path[len(prefix):]
+			if idx := strings.IndexByte(rest, '/'); idx >= 0 {
+				return prefix + "{id}" + rest[idx:]
+			}
+			return prefix + "{id}"
 		}
 	}
 	return path

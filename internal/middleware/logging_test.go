@@ -77,6 +77,25 @@ func TestRequestLoggerNormalizesPath(t *testing.T) {
 	require.Contains(t, buf.String(), "path=/api/recordings/{id}")
 }
 
+func TestRequestLoggerNormalizesCameraPath(t *testing.T) {
+	t.Helper()
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	handler := RequestLogger(logger)(next)
+
+	req := httptest.NewRequest("PUT", "/api/cameras/cam-77be39d1-71d7-45af-81c5-953cfd9ac1c9", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	require.Contains(t, buf.String(), "path=/api/cameras/{id}")
+	require.NotContains(t, buf.String(), "cam-77be39d1-71d7-45af-81c5-953cfd9ac1c9")
+}
+
 func TestStatusRecorderCapturesStatus(t *testing.T) {
 	t.Helper()
 	rec := httptest.NewRecorder()
