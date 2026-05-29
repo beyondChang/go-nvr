@@ -275,19 +275,19 @@
         </div>
 
         <!-- URL -->
-        <div class="md:col-span-3">
+        <div>
           <label for="cam-url" class="input-label">
             {t('cameras.url')}
             {#if formProtocol === 'onvif'}
               <span class="text-xs th-text-muted ml-1">({t('cameras.onvifEndpoint')})</span>
             {/if}
           </label>
-          <div class="flex gap-2">
-            <input id="cam-url" type="text" class="input flex-1 {validationErrors['url'] ? 'border-red-500' : ''}" bind:value={formUrl}
+          <div class="flex gap-1">
+            <input id="cam-url" type="text" class="input flex-1 min-w-0 {validationErrors['url'] ? 'border-red-500' : ''}" bind:value={formUrl}
               placeholder={formProtocol === 'onvif' ? 'http://192.168.1.100:80/onvif/device_service' : 'rtsp://...'}
               on:blur={() => validateField('url', formUrl)} on:input={() => { if (validationErrors['url']) delete validationErrors['url']; }} />
             {#if formProtocol === 'onvif'}
-            <button type="button" class="btn btn-ghost btn-sm shrink-0" on:click={probeONVIF} disabled={detailLoading}>
+            <button type="button" class="btn btn-ghost btn-sm shrink-0 px-1.5" on:click={probeONVIF} disabled={detailLoading}>
               {#if detailLoading}
                 <span class="spinner"></span>
               {:else}
@@ -351,7 +351,7 @@
         </div>
 
         <!-- Enabled -->
-        <div class="md:col-span-2 flex items-center gap-2">
+        <div class="md:col-span-3 flex items-center gap-2">
           <input id="cam-enabled" type="checkbox" class="accent-[var(--color-accent)]" bind:checked={formEnabled} />
           <label for="cam-enabled" class="th-text-secondary text-sm">{t('cameras.enabledToggle')}</label>
         </div>
