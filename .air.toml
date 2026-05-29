@@ -1,11 +1,10 @@
 root = "."
-tmp_dir = ".air-tmp"
 
 [build]
   bin = "go-nvr.exe"
   cmd = "go build -o go-nvr.exe ."
   delay = 1000
-  exclude_dir = ["data", "web", "android", ".air-tmp", ".atomcode", ".git"]
+  exclude_dir = ["data", "web", "android", ".atomcode", ".git"]
   exclude_file = []
   exclude_regex = [".*_test.go"]
   exclude_unchanged = false
@@ -26,9 +25,6 @@ tmp_dir = ".air-tmp"
 
 [log]
   time = true
-
-[misc]
-  clean_on_exit = true
 
 [screen]
   clear_on_rebuild = true
