@@ -584,6 +584,13 @@ func (cm *CameraManager) GetONVIFPTZController(ctx context.Context, cameraID str
 	if err := client.Connect(ctx); err != nil {
 		return nil, fmt.Errorf("connect to ONVIF camera %q: %w", cameraID, err)
 	}
+	caps, err := client.GetCapabilities(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get capabilities for camera %q: %w", cameraID, err)
+	}
+	if !caps.PTZ {
+		return nil, fmt.Errorf("camera %q does not support PTZ", cameraID)
+	}
 	profiles, err := client.GetProfiles(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("get profiles for camera %q: %w", cameraID, err)

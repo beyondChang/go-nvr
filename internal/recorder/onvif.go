@@ -160,8 +160,8 @@ func (r *ONVIFRecorder) Delegate() model.Recorder {
 
 // detectEncoding determines the stream encoding in priority order:
 // 1. Manual config (StreamEncoding field)
-// 2. ONVIF profile metadata
-// 3. RTSP DESCRIBE probe (most reliable)
+// 2. RTSP DESCRIBE probe (most reliable — ONVIF metadata often lies)
+// 3. ONVIF profile metadata
 // Falls back to H264 if detection fails.
 func (r *ONVIFRecorder) detectEncoding(ctx context.Context) string {
 	// 1. Manual override from config
@@ -170,7 +170,15 @@ func (r *ONVIFRecorder) detectEncoding(ctx context.Context) string {
 		return r.cfg.StreamEncoding
 	}
 
-	// 2. Try ONVIF profile metadata
+	// 2. Probe via RTSP DESCRIBE (most reliable)
+	if r.rtspURL != "" {
+		if enc := r.probeRTSPEncoding(); enc != "" {
+			onvifRecLogger.Info("detected encoding via RTSP DESCRIBE", "camera_id", r.cfg.CameraID, "encoding", enc)
+			return enc
+		}
+	}
+
+	// 3. Try ONVIF profile metadata (many devices report H264 while streaming H265)
 	profiles, err := r.onvifClient.GetProfiles(ctx)
 	if err == nil && len(profiles) > 0 {
 		for _, p := range profiles {
@@ -182,14 +190,6 @@ func (r *ONVIFRecorder) detectEncoding(ctx context.Context) string {
 			if p.Encoding == "H265" {
 				return "H265"
 			}
-		}
-	}
-
-	// 3. Probe via RTSP DESCRIBE
-	if r.rtspURL != "" {
-		if enc := r.probeRTSPEncoding(); enc != "" {
-			onvifRecLogger.Info("detected encoding via RTSP DESCRIBE", "camera_id", r.cfg.CameraID, "encoding", enc)
-			return enc
 		}
 	}
 

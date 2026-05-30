@@ -8,13 +8,25 @@
   let moving = $state<string | null>(null);
   let error = $state('');
 
+  function directionToPTZ(direction: string, speed: number): { pan: number; tilt: number; zoom: number } {
+    switch (direction) {
+      case 'up':    return { pan: 0, tilt: speed, zoom: 0 };
+      case 'down':  return { pan: 0, tilt: -speed, zoom: 0 };
+      case 'left':  return { pan: -speed, tilt: 0, zoom: 0 };
+      case 'right': return { pan: speed, tilt: 0, zoom: 0 };
+      case 'zoom_in':  return { pan: 0, tilt: 0, zoom: speed };
+      case 'zoom_out': return { pan: 0, tilt: 0, zoom: -speed };
+      default:      return { pan: 0, tilt: 0, zoom: 0 };
+    }
+  }
+
   async function handleMoveStart(direction: string, speed: number = 0.5) {
     if (moving) return;
     error = '';
     moving = direction;
 
     try {
-      await ptzMove(cameraId, { speed, direction });
+      await ptzMove(cameraId, { mode: 'continuous', ...directionToPTZ(direction, speed) });
     } catch (e) {
       error = e instanceof Error ? e.message : 'PTZ move failed';
       moving = null;

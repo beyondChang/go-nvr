@@ -43,7 +43,7 @@ var (
 	version    = flag.Bool("version", false, "print version and exit")
 )
 
-var appVersion = "0.1.0-dev" // overridden via -ldflags at build time
+var appVersion = "0.0.1" // overridden via -ldflags at build time
 
 // parseListenAddr normalises a port-or-address flag:
 //
